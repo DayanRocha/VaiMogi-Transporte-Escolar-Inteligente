@@ -28,6 +28,7 @@ import { BottomNavigation } from '@/components/BottomNavigation';
 import { useDriverData } from '@/hooks/useDriverData';
 import { realTimeNotificationService } from '@/services/realTimeNotificationService';
 import { Route, Student, Guardian, School as SchoolType } from '@/types/driver';
+import SEOHead from '@/components/SEOHead';
 
 export default function DriverApp() {
   const navigate = useNavigate();
@@ -935,8 +936,17 @@ export default function DriverApp() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {renderContent()}
-    </div>
+    <>
+      <SEOHead
+        title="Painel do Motorista - VaiMogi"
+        description="Painel completo para motoristas de transporte escolar. Gerencie rotas, estudantes, comunicação com responsáveis e execute viagens com segurança total."
+        keywords="motorista, transporte escolar, painel motorista, gestão rotas, estudantes, viagens, segurança, rastreamento"
+        url="/"
+        type="website"
+      />
+      <div className="min-h-screen bg-gray-50">
+        {renderContent()}
+      </div>
+    </>
   );
 }

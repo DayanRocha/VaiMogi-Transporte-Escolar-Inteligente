@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LoginPage } from './LoginPage';
 import { RegisterPage } from './RegisterPage';
 import { WelcomeDialog } from './WelcomeDialog';
+import SEOHead from './SEOHead';
 
 type AuthView = 'login' | 'register';
 
@@ -211,18 +212,34 @@ export const AuthFlow = () => {
 
   if (currentView === 'login') {
     return (
-      <LoginPage
-        onLogin={handleLogin}
-        onGuardianLogin={handleGuardianLogin}
-        onNavigateToRegister={() => setCurrentView('register')}
-        onForgotPassword={handleForgotPassword}
-        onGoogleLogin={handleGoogleAuth}
-      />
+      <>
+        <SEOHead
+          title="Login - VaiMogi"
+          description="Faça login na plataforma VaiMogi para acessar sua conta de motorista ou responsável. Acesso seguro e rápido."
+          keywords="login, entrar, acesso, conta, motorista, responsável, VaiMogi"
+          url="https://vaimogi.com/auth"
+          type="website"
+        />
+        <LoginPage
+          onLogin={handleLogin}
+          onGuardianLogin={handleGuardianLogin}
+          onNavigateToRegister={() => setCurrentView('register')}
+          onForgotPassword={handleForgotPassword}
+          onGoogleLogin={handleGoogleAuth}
+        />
+      </>
     );
   }
 
   return (
     <>
+      <SEOHead
+        title="Cadastro - VaiMogi"
+        description="Crie sua conta na VaiMogi e comece a usar nossa plataforma de transporte escolar. Cadastro rápido e seguro para motoristas e responsáveis."
+        keywords="cadastro, registro, criar conta, motorista, responsável, transporte escolar, VaiMogi"
+        url="https://vaimogi.com/auth"
+        type="website"
+      />
       <RegisterPage
         onRegister={handleRegister}
         onNavigateToLogin={() => setCurrentView('login')}
