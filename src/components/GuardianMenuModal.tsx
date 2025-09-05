@@ -23,6 +23,35 @@ export const GuardianMenuModal = ({
   children,
   schools 
 }: GuardianMenuModalProps) => {
+  // Verificações de segurança para evitar erros quando dados são null
+  if (!driver || !van || !guardian) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-500" />
+              Informações
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 flex items-center justify-center py-8">
+            <div className="text-center">
+              <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">Carregando informações...</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Aguarde enquanto carregamos os dados
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end pt-4 border-t">
+            <Button onClick={onClose} variant="outline">
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
   const getSchoolName = (schoolId: string) => {
     console.log('🏫 Buscando escola com ID:', schoolId);
     console.log('🏫 Escolas disponíveis:', schools);
