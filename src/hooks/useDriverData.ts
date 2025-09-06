@@ -53,7 +53,7 @@ export const useDriverData = () => {
   };
 
   // Carregar dados da van do localStorage se existirem
-  const getInitialVan = (): Van | null => {
+  const getInitialVan = (): Van => {
     const savedDriverData = localStorage.getItem('driverData');
     if (savedDriverData) {
       try {
@@ -66,8 +66,19 @@ export const useDriverData = () => {
         console.error('Erro ao carregar dados da van:', error);
       }
     }
-    console.log('🚐 Nenhuma van encontrada no localStorage');
-    return null;
+    console.log('🚐 Nenhuma van encontrada no localStorage, criando van padrão');
+    // Retornar van padrão quando não há dados salvos
+    const mockVan: Van = {
+      id: '1',
+      driverId: '1',
+      model: 'Fiat Ducato 12',
+      plate: 'ABC-1234',
+      capacity: 12,
+      observations: 'Van em bom estado',
+      photo: undefined,
+      drivingPermitDocument: 'data:application/pdf;base64,JVBERi0xLjQKJcOkw7zDtsO4CjIgMCBvYmoKPDwKL0xlbmd0aCAzIDAgUgo+PgpzdHJlYW0KJVBER...'
+    };
+    return mockVan;
   };
 
   // Carregar dados das escolas do localStorage se existirem
@@ -86,9 +97,25 @@ export const useDriverData = () => {
     return [];
   };
 
+  // Carregar dados das rotas do localStorage se existirem
+  const getInitialRoutes = (): Route[] => {
+    const savedRoutes = localStorage.getItem('routes');
+    if (savedRoutes) {
+      try {
+        const parsedData = JSON.parse(savedRoutes);
+        console.log('🛣️ Rotas carregadas do localStorage:', parsedData);
+        return parsedData;
+      } catch (error) {
+        console.error('Erro ao carregar dados das rotas:', error);
+      }
+    }
+    console.log('🛣️ Nenhuma rota encontrada no localStorage');
+    return [];
+  };
+
   const [driver, setDriver] = useState<Driver | null>(getInitialDriver());
-  const [van, setVan] = useState<Van | null>(getInitialVan());
-  const [routes, setRoutes] = useState<Route[]>([]);
+  const [van, setVan] = useState<Van>(getInitialVan());
+  const [routes, setRoutes] = useState<Route[]>(getInitialRoutes());
   const [students, setStudents] = useState<Student[]>(getInitialStudents());
   const [schools, setSchools] = useState<School[]>(getInitialSchools());
   const [guardians, setGuardians] = useState<Guardian[]>(getInitialGuardians());
@@ -141,6 +168,12 @@ export const useDriverData = () => {
     console.log('💾 Escolas salvas no localStorage:', schools);
   }, [schools]);
 
+  // Salvar rotas no localStorage sempre que mudarem
+  useEffect(() => {
+    localStorage.setItem('routes', JSON.stringify(routes));
+    console.log('💾 Rotas salvas no localStorage:', routes);
+  }, [routes]);
+
   // Salvar activeTrip no localStorage sempre que mudar
   useEffect(() => {
     if (activeTrip) {
@@ -164,13 +197,20 @@ export const useDriverData = () => {
     const newVanData = { ...van, ...updatedVan };
     setVan(newVanData);
     
-    // Salvar van junto com os dados do motorista
-    const currentDriverData = JSON.parse(localStorage.getItem('driverData') || '{}');
-    const updatedDriverData = {
-      ...currentDriverData,
-      van: newVanData
-    };
-    localStorage.setItem('driverData', JSON.stringify(updatedDriverData));
+    // Atualizar também os dados do motorista se existirem
+    if (driver) {
+      const updatedDriver = { ...driver, van: newVanData };
+      setDriver(updatedDriver);
+      localStorage.setItem('driverData', JSON.stringify(updatedDriver));
+    } else {
+      // Salvar van junto com os dados do motorista
+      const currentDriverData = JSON.parse(localStorage.getItem('driverData') || '{}');
+      const updatedDriverData = {
+        ...currentDriverData,
+        van: newVanData
+      };
+      localStorage.setItem('driverData', JSON.stringify(updatedDriverData));
+    }
     console.log('💾 Van salva junto com dados do motorista:', newVanData);
   };
 

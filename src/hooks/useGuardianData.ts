@@ -158,7 +158,8 @@ const getVanData = (driverId: string): Van | null => {
           plate: driverData.van.plate || 'Placa não informada',
           capacity: driverData.van.capacity || 0,
           observations: driverData.van.observations || '',
-          photo: driverData.van.photo || '/placeholder.svg'
+          photo: driverData.van.photo || '/placeholder.svg',
+          drivingPermitDocument: driverData.van.drivingPermitDocument
         };
       }
     } catch (error) {
@@ -185,7 +186,8 @@ const getVanData = (driverId: string): Van | null => {
           plate: van.plate || 'Placa não informada',
           capacity: van.capacity || 0,
           observations: van.observations || '',
-          photo: van.photo || '/placeholder.svg'
+          photo: van.photo || '/placeholder.svg',
+          drivingPermitDocument: van.drivingPermitDocument
         };
       } else {
         console.log('⚠️ Van não encontrada para motorista específico:', driverId);
@@ -201,7 +203,8 @@ const getVanData = (driverId: string): Van | null => {
             plate: firstVan.plate || 'Placa não informada',
             capacity: firstVan.capacity || 0,
             observations: firstVan.observations || '',
-            photo: firstVan.photo || '/placeholder.svg'
+            photo: firstVan.photo || '/placeholder.svg',
+            drivingPermitDocument: firstVan.drivingPermitDocument
           };
         }
       }

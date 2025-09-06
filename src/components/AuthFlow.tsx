@@ -160,33 +160,7 @@ export const AuthFlow = () => {
     }
   };
 
-  // Função de login/cadastro com Google
-  const handleGoogleAuth = async () => {
-    setIsLoading(true);
-    try {
-      // Aqui você implementaria a integração com Google OAuth
-      console.log('Google auth attempt');
-      
-      // Simular chamada de API
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Verificar se é o primeiro login Google (simulado)
-      const isFirstLogin = !localStorage.getItem('hasLoggedInBefore');
-      
-      if (isFirstLogin) {
-        localStorage.setItem('hasLoggedInBefore', 'true');
-        setDriverName('Motorista'); // Nome genérico para Google auth
-        setShowWelcome(true);
-      } else {
-        navigate('/');
-      }
-    } catch (error) {
-      console.error('Erro na autenticação com Google:', error);
-      alert('Erro ao autenticar com Google. Tente novamente.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
 
   // Função para recuperação de senha
   const handleForgotPassword = async () => {
@@ -225,7 +199,6 @@ export const AuthFlow = () => {
           onGuardianLogin={handleGuardianLogin}
           onNavigateToRegister={() => setCurrentView('register')}
           onForgotPassword={handleForgotPassword}
-          onGoogleLogin={handleGoogleAuth}
         />
       </>
     );
@@ -243,7 +216,6 @@ export const AuthFlow = () => {
       <RegisterPage
         onRegister={handleRegister}
         onNavigateToLogin={() => setCurrentView('login')}
-        onGoogleRegister={handleGoogleAuth}
       />
       
       <WelcomeDialog
