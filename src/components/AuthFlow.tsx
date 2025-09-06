@@ -32,7 +32,7 @@ export const AuthFlow = () => {
         setDriverName(email.split('@')[0]); // Use parte do email como nome temporário
         setShowWelcome(true);
       } else {
-        navigate('/');
+        navigate('/driver');
       }
     } catch (error) {
       console.error('Erro no login:', error);
@@ -222,7 +222,7 @@ export const AuthFlow = () => {
         isOpen={showWelcome}
         onClose={() => {
           setShowWelcome(false);
-          navigate('/');
+          navigate('/driver');
         }}
         driverName={driverName}
       />

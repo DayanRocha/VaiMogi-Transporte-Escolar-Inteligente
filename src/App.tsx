@@ -9,6 +9,7 @@ import DriverApp from "./pages/DriverApp";
 import { GuardianApp } from "./pages/GuardianApp";
 import NotFound from "./pages/NotFound";
 import { AuthFlow } from "./components/AuthFlow";
+import { LandingPage } from "./components/LandingPage";
 
 
 const queryClient = new QueryClient();
@@ -21,7 +22,8 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<DriverApp />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/driver" element={<DriverApp />} />
             <Route path="/guardian" element={<GuardianApp />} />
             <Route path="/auth" element={<AuthFlow />} />
             <Route path="*" element={<NotFound />} />
