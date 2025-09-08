@@ -207,44 +207,146 @@ class RouteCalculationService {
       return null;
     }
 
+    // Verificar limite de waypoints do Mapbox (máximo 25)
+    if (waypoints.length > 25) {
+      console.warn('⚠️ Muitos waypoints. Limitando a 25 conforme API do Mapbox');
+      waypoints = waypoints.slice(0, 25);
+    }
+
     try {
-      // Preparar coordenadas para a API
-      const coordinates = waypoints
-        .map(wp => `${wp.coordinates[0]},${wp.coordinates[1]}`)
+      // Validar coordenadas rigorosamente antes de enviar para a API
+      const validWaypoints = waypoints.filter(wp => {
+        const [lng, lat] = wp.coordinates;
+        
+        // Validação mais rigorosa conforme documentação Mapbox
+        const isValidLng = typeof lng === 'number' && 
+                          !isNaN(lng) && 
+                          isFinite(lng) && 
+                          lng >= -180 && lng <= 180;
+        
+        const isValidLat = typeof lat === 'number' && 
+                          !isNaN(lat) && 
+                          isFinite(lat) && 
+                          lat >= -90 && lat <= 90;
+        
+        const isValid = isValidLng && isValidLat;
+        
+        if (!isValid) {
+          console.warn(`⚠️ Coordenada inválida encontrada para ${wp.name}:`, {
+            lng, lat, 
+            isValidLng, 
+            isValidLat,
+            reason: isNaN(lng) || isNaN(lat) ? 'Coordenada NaN detectada' : 'Coordenada fora dos limites'
+          });
+        }
+        return isValid;
+      });
+
+      if (validWaypoints.length < 2) {
+        console.error('❌ Não há waypoints válidos suficientes após validação');
+        return null;
+      }
+
+      // Remover waypoints duplicados ou muito próximos (mínimo 50 metros para evitar problemas)
+      const uniqueWaypoints = validWaypoints.filter((wp, index) => {
+        for (let i = 0; i < index; i++) {
+          const distance = this.calculateDistance(
+            wp.coordinates[1], wp.coordinates[0],
+            validWaypoints[i].coordinates[1], validWaypoints[i].coordinates[0]
+          );
+          if (distance < 0.05) { // menos de 50 metros
+            console.warn(`⚠️ Waypoint muito próximo removido: ${wp.name} (${distance.toFixed(3)}km do anterior)`);
+            return false;
+          }
+        }
+        return true;
+      });
+
+      if (uniqueWaypoints.length < 2) {
+        console.error('❌ Não há waypoints únicos suficientes após remoção de duplicatas');
+        return null;
+      }
+
+      // Preparar coordenadas com precisão adequada (6 casas decimais)
+      const coordinates = uniqueWaypoints
+        .map(wp => {
+          const lng = Number(wp.coordinates[0].toFixed(6));
+          const lat = Number(wp.coordinates[1].toFixed(6));
+          return `${lng},${lat}`;
+        })
         .join(';');
 
-      // Construir URL da API
+      console.log('🗺️ Coordenadas enviadas para API:', coordinates);
+      console.log('📊 Waypoints finais:', uniqueWaypoints.length);
+
+      // Usar perfil de condução padrão (mapbox/driving)
+      const profile = 'mapbox/driving';
       const baseUrl = `${MAPBOX_CONFIG.directionsApiUrl}/${coordinates}`;
+      
       const params = new URLSearchParams({
         access_token: MAPBOX_CONFIG.accessToken,
         geometries: 'geojson',
         steps: 'true',
-        overview: 'full',
-        annotations: 'duration,distance'
+        overview: 'full'
       });
 
-      // Adicionar parâmetros de otimização se necessário
-      if (options.optimize && waypoints.length > 2) {
+      // Adicionar parâmetros válidos conforme documentação Mapbox
+      if (options.optimize && uniqueWaypoints.length > 2 && uniqueWaypoints.length <= 12) {
+        // Otimização só funciona com 3-12 waypoints (excluindo origem e destino)
         params.append('optimize', 'true');
       }
-      if (options.roundtrip) {
-        params.append('roundtrip', 'true');
-      }
-      if (options.source) {
-        params.append('source', options.source);
-      }
-      if (options.destination) {
-        params.append('destination', options.destination);
-      }
+      
+      // Remover annotations que podem causar problemas
+      // Manter apenas parâmetros essenciais para evitar erro 422
 
       const url = `${baseUrl}?${params.toString()}`;
       
-      console.log('🌐 Fazendo requisição para Mapbox Directions API...');
+      // Verificar se URL não excede limite (8100 bytes)
+      if (url.length > 8100) {
+        console.warn('⚠️ URL muito longa, usando método POST');
+        return await this.calculateRouteWithPost(uniqueWaypoints, options);
+      }
       
-      const response = await fetch(url);
+      console.log('🌐 Fazendo requisição para Mapbox Directions API...');
+      console.log('🔗 URL:', url.substring(0, 200) + '...');
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       
       if (!response.ok) {
-        throw new Error(`Erro na API: ${response.status} - ${response.statusText}`);
+        let errorMessage = `Erro na API Mapbox: ${response.status} - ${response.statusText}`;
+        let errorDetails = null;
+        
+        try {
+          errorDetails = await response.json();
+          console.error('❌ Resposta de erro da API:', errorDetails);
+        } catch (e) {
+          console.error('❌ Não foi possível ler detalhes do erro');
+        }
+        
+        if (response.status === 422) {
+          // Erro 422: InvalidInput - parâmetros inválidos
+          const message = errorDetails?.message || 'Parâmetros de entrada inválidos';
+          errorMessage = `Erro de validação (422): ${message}`;
+          
+          console.error('❌ Erro 422 - Dados enviados:', {
+            coordinates,
+            waypoints: uniqueWaypoints.length,
+            url: url.substring(0, 300)
+          });
+        } else if (response.status === 401) {
+          errorMessage = 'Token de acesso inválido ou não fornecido';
+        } else if (response.status === 403) {
+          errorMessage = 'Acesso negado - verifique as permissões da conta';
+        } else if (response.status === 404) {
+          errorMessage = 'Perfil de roteamento não encontrado';
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -255,23 +357,29 @@ class RouteCalculationService {
       }
 
       const route = data.routes[0];
+      const geometry = route.geometry;
+      
+      if (!geometry || !geometry.coordinates) {
+        console.error('❌ Geometria da rota inválida');
+        return null;
+      }
       
       // Processar resposta da API
       const calculatedRoute: CalculatedRoute = {
-        waypoints: waypoints,
-        coordinates: route.geometry.coordinates,
+        waypoints: uniqueWaypoints,
+        coordinates: geometry.coordinates,
         distance: route.distance,
         duration: route.duration,
-        geometry: JSON.stringify(route.geometry),
-        legs: route.legs.map((leg: any) => ({
+        geometry: JSON.stringify(geometry),
+        legs: route.legs?.map((leg: any) => ({
           distance: leg.distance,
           duration: leg.duration,
-          steps: leg.steps.map((step: any) => ({
-            instruction: step.maneuver.instruction || 'Continue',
+          steps: leg.steps?.map((step: any) => ({
+            instruction: step.maneuver?.instruction || 'Continue',
             distance: step.distance,
             duration: step.duration
-          }))
-        }))
+          })) || []
+        })) || []
       };
 
       console.log('✅ Rota processada com sucesso:', {
@@ -284,6 +392,112 @@ class RouteCalculationService {
       return calculatedRoute;
     } catch (error) {
       console.error('❌ Erro ao calcular rota otimizada:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Calcula rota usando método POST para URLs muito longas
+   */
+  private async calculateRouteWithPost(
+    waypoints: RouteWaypoint[],
+    options: RouteOptimizationOptions
+  ): Promise<CalculatedRoute | null> {
+    try {
+      const coordinates = waypoints.map(wp => [
+        Number(wp.coordinates[0].toFixed(6)),
+        Number(wp.coordinates[1].toFixed(6))
+      ]);
+
+      const requestBody: any = {
+        coordinates,
+        geometries: 'geojson',
+        steps: true,
+        overview: 'full'
+      };
+
+      // Adicionar otimização apenas se houver waypoints suficientes
+      if (options.optimize && waypoints.length >= 3 && waypoints.length <= 12) {
+        requestBody.optimize = true;
+      }
+
+      const profile = 'mapbox/driving';
+      const url = `${MAPBOX_CONFIG.directionsApiUrl}?access_token=${MAPBOX_CONFIG.accessToken}`;
+
+      console.log('🌐 Fazendo requisição POST para Mapbox Directions API...');
+      console.log('📦 Payload:', JSON.stringify(requestBody, null, 2));
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        let errorMessage = `Erro na API Mapbox (POST): ${response.status} - ${response.statusText}`;
+        let errorDetails = null;
+        
+        try {
+          errorDetails = await response.json();
+          console.error('❌ Resposta de erro da API (POST):', errorDetails);
+        } catch (e) {
+          console.error('❌ Não foi possível ler detalhes do erro (POST)');
+        }
+        
+        if (response.status === 422) {
+          const message = errorDetails?.message || 'Parâmetros de entrada inválidos';
+          errorMessage = `Erro de validação POST (422): ${message}`;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      
+      if (!data.routes || data.routes.length === 0) {
+        console.warn('⚠️ Nenhuma rota encontrada (POST)');
+        return null;
+      }
+
+      const route = data.routes[0];
+      const geometry = route.geometry;
+      
+      if (!geometry || !geometry.coordinates) {
+        console.error('❌ Geometria da rota inválida (POST)');
+        return null;
+      }
+      
+      // Processar resposta da API
+      const calculatedRoute: CalculatedRoute = {
+        waypoints: waypoints,
+        coordinates: geometry.coordinates,
+        distance: route.distance,
+        duration: route.duration,
+        geometry: JSON.stringify(geometry),
+        legs: route.legs?.map((leg: any) => ({
+          distance: leg.distance,
+          duration: leg.duration,
+          steps: leg.steps?.map((step: any) => ({
+            instruction: step.maneuver?.instruction || 'Continue',
+            distance: step.distance,
+            duration: step.duration
+          })) || []
+        })) || []
+      };
+
+      console.log('✅ Rota calculada com sucesso via POST:', {
+        totalDistance: `${(calculatedRoute.distance / 1000).toFixed(2)} km`,
+        totalDuration: `${Math.round(calculatedRoute.duration / 60)} min`,
+        coordinatesCount: calculatedRoute.coordinates.length,
+        legsCount: calculatedRoute.legs.length
+      });
+
+      return calculatedRoute;
+
+    } catch (error) {
+      console.error('❌ Erro ao calcular rota via POST:', error);
       throw error;
     }
   }
@@ -403,6 +617,8 @@ class RouteCalculationService {
     const arrivalTime = new Date(currentTime.getTime() + (route.duration * 1000));
     return arrivalTime;
   }
+
+
 }
 
 export const routeCalculationService = RouteCalculationService.getInstance();

@@ -13,7 +13,16 @@ interface VanRegistrationProps {
 }
 
 export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistrationProps) => {
-  const [formData, setFormData] = useState(van);
+  const [formData, setFormData] = useState(van || {
+    id: '',
+    driverId: '',
+    model: '',
+    plate: '',
+    capacity: 0,
+    observations: '',
+    photo: '',
+    drivingPermitDocument: ''
+  });
 
   const handleSave = () => {
     onUpdate(formData);
@@ -77,7 +86,7 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
           <Label className="text-gray-700 font-medium">Foto da Van</Label>
           <div className="mt-3 relative">
             <div className="w-full h-40 bg-white rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-              {formData.photo ? (
+              {formData?.photo ? (
                 <img
                   src={formData.photo}
                   alt="Foto da van"

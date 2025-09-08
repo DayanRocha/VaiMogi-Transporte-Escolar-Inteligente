@@ -52,25 +52,48 @@ class RealtimeDataService {
    */
   private async geocodeAddress(address: string): Promise<[number, number] | null> {
     try {
-      const encodedAddress = encodeURIComponent(address);
-      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?access_token=${MAPBOX_CONFIG.accessToken}&country=BR&limit=1`;
+      // Validar se o endereço não está vazio
+      if (!address || address.trim().length === 0) {
+        console.warn('⚠️ Endereço vazio fornecido para geocodificação');
+        return null;
+      }
+
+      const encodedAddress = encodeURIComponent(address.trim());
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?access_token=${MAPBOX_CONFIG.accessToken}&country=BR&limit=1&types=address,poi`;
+      
+      console.log('🔍 Geocodificando endereço:', address);
       
       const response = await fetch(url);
       
       if (!response.ok) {
-        throw new Error(`Erro na API do Mapbox: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`❌ Erro na API de Geocodificação Mapbox: ${response.status}`, errorText);
+        return null;
       }
       
       const data = await response.json();
       
       if (data.features && data.features.length > 0) {
         const coordinates = data.features[0].center;
-        return [coordinates[0], coordinates[1]];
+        const [lng, lat] = coordinates;
+        
+        // Validar coordenadas retornadas
+        if (typeof lng === 'number' && typeof lat === 'number' && 
+            !isNaN(lng) && !isNaN(lat) && 
+            lng >= -180 && lng <= 180 && 
+            lat >= -90 && lat <= 90) {
+          console.log('✅ Endereço geocodificado com sucesso:', { address, lng, lat });
+          return [lng, lat];
+        } else {
+          console.warn('⚠️ Coordenadas inválidas retornadas pela geocodificação:', coordinates);
+          return null;
+        }
       } else {
-        throw new Error('Endereço não encontrado');
+        console.warn('⚠️ Endereço não encontrado na geocodificação:', address);
+        return null;
       }
     } catch (error) {
-      console.error('Erro ao geocodificar endereço:', error);
+      console.error('❌ Erro ao geocodificar endereço:', { address, error });
       return null;
     }
   }
@@ -188,9 +211,27 @@ class RealtimeDataService {
       try {
         let coordinates: { lat: number; lng: number } | undefined;
         
-        // Se já tem coordenadas, usar elas
+        // Se já tem coordenadas, validar e usar elas
         if (pickup.lat && pickup.lng) {
-          coordinates = { lat: pickup.lat, lng: pickup.lng };
+          const lat = Number(pickup.lat);
+          const lng = Number(pickup.lng);
+          
+          // Validar coordenadas existentes
+          if (!isNaN(lat) && !isNaN(lng) && 
+              lat >= -90 && lat <= 90 && 
+              lng >= -180 && lng <= 180) {
+            coordinates = { lat, lng };
+            console.log('✅ Coordenadas válidas encontradas para estudante:', pickup.studentName || pickup.id);
+          } else {
+            console.warn('⚠️ Coordenadas inválidas para estudante, tentando geocodificar:', pickup.studentName || pickup.id);
+            // Tentar geocodificar se as coordenadas são inválidas
+            if (pickup.address) {
+              const coords = await this.geocodeAddress(pickup.address);
+              if (coords) {
+                coordinates = { lat: coords[1], lng: coords[0] };
+              }
+            }
+          }
         } else if (pickup.address) {
           // Geocodificar o endereço
           const coords = await this.geocodeAddress(pickup.address);

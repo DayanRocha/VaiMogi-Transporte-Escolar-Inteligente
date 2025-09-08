@@ -207,7 +207,7 @@ export const RouteTrackingMap: React.FC<RouteTrackingMapProps> = ({
     // Construir URL do mapa centrada no motorista usando MapBox
     const bbox = `${bounds.minLng},${bounds.minLat},${bounds.maxLng},${bounds.maxLat}`;
     const markersStr = routeMarkers.join('&');
-    const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/${markersStr}/${bounds.minLng},${bounds.minLat},${bounds.maxLng},${bounds.maxLat}/600x400?access_token=${process.env.REACT_APP_MAPBOX_ACCESS_TOKEN}`;
+    const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/${markersStr}/${bounds.minLng},${bounds.minLat},${bounds.maxLng},${bounds.maxLat}/600x400?access_token=${import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}`;
 
     setMapUrl(mapUrl);
     
