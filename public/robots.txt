@@ -1,0 +1,132 @@
+# Robots.txt para VaiMogi - Transporte Escolar Inteligente
+# Atualizado em: 2025-01-10
+
+# Sitemap
+Sitemap: https://vaimogi.com/sitemap.xml
+
+# Googlebot (Google Search)
+User-agent: Googlebot
+Allow: /
+Allow: /static/
+Allow: /assets/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+Disallow: /*.json$
+Disallow: /*?*
+Crawl-delay: 1
+
+# Bingbot (Microsoft Bing)
+User-agent: Bingbot
+Allow: /
+Allow: /static/
+Allow: /assets/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+Disallow: /*.json$
+Disallow: /*?*
+Crawl-delay: 1
+
+# Twitterbot (Twitter Cards)
+User-agent: Twitterbot
+Allow: /
+Allow: /static/
+Allow: /assets/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+
+# Facebook External Hit (Facebook Sharing)
+User-agent: facebookexternalhit
+Allow: /
+Allow: /static/
+Allow: /assets/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+
+# LinkedIn Bot
+User-agent: LinkedInBot
+Allow: /
+Allow: /static/
+Allow: /assets/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+
+# WhatsApp Bot
+User-agent: WhatsApp
+Allow: /
+Allow: /static/
+Allow: /assets/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+
+# Telegram Bot
+User-agent: TelegramBot
+Allow: /
+Allow: /static/
+Allow: /assets/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+
+# Yandex Bot (Russian search engine)
+User-agent: YandexBot
+Allow: /
+Allow: /static/
+Allow: /assets/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+Disallow: /*.json$
+Disallow: /*?*
+Crawl-delay: 2
+
+# Baidu Bot (Chinese search engine)
+User-agent: Baiduspider
+Allow: /
+Allow: /static/
+Allow: /assets/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+Disallow: /*.json$
+Disallow: /*?*
+Crawl-delay: 3
+
+# Block malicious bots
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MajesticSEO
+Disallow: /
+
+# Default rule for all other bots
+User-agent: *
+Allow: /
+Allow: /static/
+Allow: /assets/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+Disallow: /*.json$
+Disallow: /*?*
+Disallow: /temp/
+Disallow: /cache/
+Disallow: /logs/
+Crawl-delay: 2
+
+# Host (optional - specify your preferred domain)
+Host: https://vaimogi.com
