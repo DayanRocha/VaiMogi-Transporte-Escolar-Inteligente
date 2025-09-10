@@ -6,14 +6,22 @@ import { Label } from '@/components/ui/label';
 import { Van } from '@/types/driver';
 
 interface VanRegistrationProps {
-  van: Van;
+  van: Van | null;
   onUpdate: (updates: Partial<Van>) => void;
   onBack: () => void;
   onLogout?: () => void;
 }
 
 export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistrationProps) => {
-  const [formData, setFormData] = useState(van);
+  const [formData, setFormData] = useState<Van>(van || {
+    id: '',
+    driverId: '',
+    model: '',
+    plate: '',
+    capacity: 0,
+    observations: '',
+    photo: ''
+  });
 
   const handleSave = () => {
     onUpdate(formData);
@@ -63,7 +71,7 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
           <Label className="text-gray-700 font-medium">Foto da Van</Label>
           <div className="mt-3 relative">
             <div className="w-full h-40 bg-white rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-              {formData.photo ? (
+              {formData.photo && formData.photo.trim() !== '' ? (
                 <img
                   src={formData.photo}
                   alt="Foto da van"

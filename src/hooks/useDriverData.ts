@@ -86,9 +86,25 @@ export const useDriverData = () => {
     return [];
   };
 
+  // Carregar dados das rotas do localStorage se existirem
+  const getInitialRoutes = (): Route[] => {
+    const savedRoutes = localStorage.getItem('routes');
+    if (savedRoutes) {
+      try {
+        const parsedData = JSON.parse(savedRoutes);
+        console.log('🛣️ Rotas carregadas do localStorage:', parsedData);
+        return parsedData;
+      } catch (error) {
+        console.error('Erro ao carregar dados das rotas:', error);
+      }
+    }
+    console.log('🛣️ Nenhuma rota encontrada no localStorage');
+    return [];
+  };
+
   const [driver, setDriver] = useState<Driver | null>(getInitialDriver());
   const [van, setVan] = useState<Van | null>(getInitialVan());
-  const [routes, setRoutes] = useState<Route[]>([]);
+  const [routes, setRoutes] = useState<Route[]>(getInitialRoutes());
   const [students, setStudents] = useState<Student[]>(getInitialStudents());
   const [schools, setSchools] = useState<School[]>(getInitialSchools());
   const [guardians, setGuardians] = useState<Guardian[]>(getInitialGuardians());
@@ -140,6 +156,12 @@ export const useDriverData = () => {
     localStorage.setItem('schools', JSON.stringify(schools));
     console.log('💾 Escolas salvas no localStorage:', schools);
   }, [schools]);
+
+  // Salvar rotas no localStorage sempre que mudarem
+  useEffect(() => {
+    localStorage.setItem('routes', JSON.stringify(routes));
+    console.log('💾 Rotas salvas no localStorage:', routes);
+  }, [routes]);
 
   // Salvar activeTrip no localStorage sempre que mudar
   useEffect(() => {
