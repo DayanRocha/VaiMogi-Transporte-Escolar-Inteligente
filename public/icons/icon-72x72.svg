@@ -1,0 +1,8 @@
+<svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="72" height="72" rx="16" fill="#2563eb"/>
+  <path d="M18 24h36c2.2 0 4 1.8 4 4v16c0 2.2-1.8 4-4 4H18c-2.2 0-4-1.8-4-4V28c0-2.2 1.8-4 4-4z" fill="white"/>
+  <circle cx="22" cy="50" r="4" fill="white"/>
+  <circle cx="50" cy="50" r="4" fill="white"/>
+  <rect x="26" y="30" width="20" height="12" rx="2" fill="#2563eb"/>
+  <text x="36" y="38" text-anchor="middle" fill="white" font-family="Arial" font-size="8" font-weight="bold">VM</text>
+</svg>

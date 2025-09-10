@@ -1,5 +1,6 @@
 import { GuardianNotification } from '@/hooks/useGuardianData';
 import { routeHistoryService } from './routeHistoryService';
+import { realtimeDataService } from './realtimeDataService';
 
 export interface RouteLocation {
   lat: number;
@@ -398,6 +399,9 @@ class RouteTrackingService {
     // Iniciar rastreamento de localização
     this.startLocationTracking();
     
+    // Iniciar traçado automático de rota
+    this.startAutomaticRouteTracing(route);
+    
     // Notificar listeners
     this.notifyListeners(route);
     
@@ -604,6 +608,30 @@ class RouteTrackingService {
   isNearLocation(driverLat: number, driverLng: number, targetLat: number, targetLng: number, radiusMeters: number = 100): boolean {
     const distance = this.calculateDistance(driverLat, driverLng, targetLat, targetLng);
     return distance <= radiusMeters;
+  }
+
+  /**
+   * Inicia o traçado automático de rota quando a viagem é iniciada
+   */
+  private async startAutomaticRouteTracing(route: ActiveRoute): Promise<void> {
+    try {
+      console.log('🗺️ Iniciando traçado automático de rota...');
+      
+      // Aguardar um pouco para garantir que a localização inicial seja capturada
+      setTimeout(async () => {
+        try {
+          // Iniciar captura de dados em tempo real que inclui cálculo automático de rota
+          await realtimeDataService.startDataCapture();
+          
+          console.log('✅ Traçado automático de rota iniciado com sucesso');
+        } catch (error) {
+          console.error('❌ Erro ao iniciar traçado automático de rota:', error);
+        }
+      }, 2000); // Aguardar 2 segundos para estabilizar a localização
+      
+    } catch (error) {
+      console.error('❌ Erro ao configurar traçado automático de rota:', error);
+    }
   }
 }
 

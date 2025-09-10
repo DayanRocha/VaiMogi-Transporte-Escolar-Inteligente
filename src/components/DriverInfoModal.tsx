@@ -21,15 +21,15 @@ export const DriverInfoModal = ({ isOpen, onClose, driver, van }: DriverInfoModa
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <User className="w-5 h-5 text-blue-500" />
             Informações do Motorista
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-6 px-6 py-2 overflow-y-auto flex-1 min-h-0">
           {/* Driver Photo and Basic Info */}
           <div className="flex items-center gap-4">
             <img
@@ -128,7 +128,7 @@ export const DriverInfoModal = ({ isOpen, onClose, driver, van }: DriverInfoModa
           </div>
         </div>
 
-        <div className="flex justify-end pt-4">
+        <div className="flex justify-end px-6 py-4 border-t bg-white flex-shrink-0">
           <Button onClick={onClose} variant="outline">
             Fechar
           </Button>

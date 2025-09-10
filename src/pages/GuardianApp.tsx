@@ -7,6 +7,7 @@ import { GuardianHeader } from '@/components/GuardianHeader';
 import { GuardianMenuModal } from '@/components/GuardianMenuModal';
 import { NotificationPanel } from '@/components/NotificationPanel';
 import { GuardianWelcomeDialog } from '@/components/GuardianWelcomeDialog';
+import SEOHead from '@/components/SEOHead';
 
 import { useGuardianData } from '@/hooks/useGuardianData';
 import { useRealTimeNotifications } from '@/hooks/useRealTimeNotifications';
@@ -150,7 +151,15 @@ export const GuardianApp = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <>
+      <SEOHead
+        title="Painel do Responsável - VaiMogi"
+        description="Acompanhe o transporte escolar do seu filho em tempo real. Receba notificações, visualize a localização da van e mantenha comunicação direta com o motorista."
+        keywords="responsável, pais, transporte escolar, rastreamento tempo real, localização van, notificações, segurança estudante"
+        url="/guardian"
+        type="website"
+      />
+      <div className="min-h-screen bg-gray-100">
       {/* Header */}
       <GuardianHeader
         guardian={guardian}
@@ -204,6 +213,7 @@ export const GuardianApp = () => {
         onClose={handleWelcomeClose}
         guardianName={guardian.name}
       />
-    </div>
+      </div>
+    </>
   );
 };

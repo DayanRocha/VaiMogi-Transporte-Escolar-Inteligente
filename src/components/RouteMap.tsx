@@ -5,7 +5,7 @@ import { MapboxMap } from './maps/MapboxMap';
 import { useMapbox } from '../hooks/useMapbox';
 import mapboxgl from 'mapbox-gl';
 
-interface LeafletMapProps {
+interface RouteMapProps {
   activeRoute: ActiveRoute;
   driverLocation?: RouteLocation;
   nextDestination?: {
@@ -18,7 +18,7 @@ interface LeafletMapProps {
   };
 }
 
-export const LeafletMap: React.FC<LeafletMapProps> = ({
+export const RouteMap: React.FC<RouteMapProps> = ({
   activeRoute,
   driverLocation,
   nextDestination

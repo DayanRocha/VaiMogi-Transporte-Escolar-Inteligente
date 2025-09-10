@@ -204,10 +204,10 @@ export const RouteTrackingMap: React.FC<RouteTrackingMapProps> = ({
     const bounds = calculateDriverCenteredBounds();
     const { routeMarkers, routeDescription } = generateAutomaticRoute();
     
-    // Construir URL do mapa centrada no motorista
+    // Construir URL do mapa centrada no motorista usando MapBox
     const bbox = `${bounds.minLng},${bounds.minLat},${bounds.maxLng},${bounds.maxLat}`;
     const markersStr = routeMarkers.join('&');
-    const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&${markersStr}`;
+    const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/${markersStr}/${bounds.minLng},${bounds.minLat},${bounds.maxLng},${bounds.maxLat}/600x400?access_token=${import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}`;
 
     setMapUrl(mapUrl);
     

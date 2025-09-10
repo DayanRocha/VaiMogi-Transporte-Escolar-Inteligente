@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LoginPage } from './LoginPage';
 import { RegisterPage } from './RegisterPage';
 import { WelcomeDialog } from './WelcomeDialog';
+import SEOHead from './SEOHead';
 
 type AuthView = 'login' | 'register';
 
@@ -31,7 +32,7 @@ export const AuthFlow = () => {
         setDriverName(email.split('@')[0]); // Use parte do email como nome temporário
         setShowWelcome(true);
       } else {
-        navigate('/');
+        navigate('/driver');
       }
     } catch (error) {
       console.error('Erro no login:', error);
@@ -159,33 +160,7 @@ export const AuthFlow = () => {
     }
   };
 
-  // Função de login/cadastro com Google
-  const handleGoogleAuth = async () => {
-    setIsLoading(true);
-    try {
-      // Aqui você implementaria a integração com Google OAuth
-      console.log('Google auth attempt');
-      
-      // Simular chamada de API
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Verificar se é o primeiro login Google (simulado)
-      const isFirstLogin = !localStorage.getItem('hasLoggedInBefore');
-      
-      if (isFirstLogin) {
-        localStorage.setItem('hasLoggedInBefore', 'true');
-        setDriverName('Motorista'); // Nome genérico para Google auth
-        setShowWelcome(true);
-      } else {
-        navigate('/');
-      }
-    } catch (error) {
-      console.error('Erro na autenticação com Google:', error);
-      alert('Erro ao autenticar com Google. Tente novamente.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
 
   // Função para recuperação de senha
   const handleForgotPassword = async () => {
@@ -211,29 +186,43 @@ export const AuthFlow = () => {
 
   if (currentView === 'login') {
     return (
-      <LoginPage
-        onLogin={handleLogin}
-        onGuardianLogin={handleGuardianLogin}
-        onNavigateToRegister={() => setCurrentView('register')}
-        onForgotPassword={handleForgotPassword}
-        onGoogleLogin={handleGoogleAuth}
-      />
+      <>
+        <SEOHead
+          title="Login - VaiMogi"
+          description="Faça login na plataforma VaiMogi para acessar sua conta de motorista ou responsável. Acesso seguro e rápido."
+          keywords="login, entrar, acesso, conta, motorista, responsável, VaiMogi"
+          url="https://vaimogi.com/auth"
+          type="website"
+        />
+        <LoginPage
+          onLogin={handleLogin}
+          onGuardianLogin={handleGuardianLogin}
+          onNavigateToRegister={() => setCurrentView('register')}
+          onForgotPassword={handleForgotPassword}
+        />
+      </>
     );
   }
 
   return (
     <>
+      <SEOHead
+        title="Cadastro - VaiMogi"
+        description="Crie sua conta na VaiMogi e comece a usar nossa plataforma de transporte escolar. Cadastro rápido e seguro para motoristas e responsáveis."
+        keywords="cadastro, registro, criar conta, motorista, responsável, transporte escolar, VaiMogi"
+        url="https://vaimogi.com/auth"
+        type="website"
+      />
       <RegisterPage
         onRegister={handleRegister}
         onNavigateToLogin={() => setCurrentView('login')}
-        onGoogleRegister={handleGoogleAuth}
       />
       
       <WelcomeDialog
         isOpen={showWelcome}
         onClose={() => {
           setShowWelcome(false);
-          navigate('/');
+          navigate('/driver');
         }}
         driverName={driverName}
       />

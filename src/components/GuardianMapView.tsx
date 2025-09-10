@@ -1,9 +1,11 @@
 
 import React, { useState, useMemo } from 'react';
-import { MapPin, AlertCircle } from 'lucide-react';
+import { MapPin, AlertCircle, Navigation } from 'lucide-react';
 import { Driver, Van, Student, Trip } from '@/types/driver';
 import { useRouteTracking } from '@/hooks/useRouteTracking';
+import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { MapboxMap } from '@/components/maps/MapboxMap';
+import { RealtimeMapView } from '@/components/guardian/RealtimeMapView';
 
 interface GuardianMapViewProps {
   driver: Driver;
@@ -21,7 +23,9 @@ export const GuardianMapView = React.memo(({ driver, van, students, activeTrip }
     isLoading 
   } = useRouteTracking();
   
+  const { realtimeData, isCapturing } = useRealtimeData();
   const [mapError, setMapError] = useState(false);
+  const [useRealtimeMode, setUseRealtimeMode] = useState(true);
 
   // Memoizar dados do mapa para evitar recriações desnecessárias - SEMPRE executar hooks
   const mapData = useMemo(() => {
@@ -48,7 +52,7 @@ export const GuardianMapView = React.memo(({ driver, van, students, activeTrip }
         markers.push({
           id: 'driver',
           coordinates: [currentDriverLocation.lng, currentDriverLocation.lat] as [number, number],
-          popup: `<div class="p-2"><strong>${driver?.name || 'Motorista'} - ${van?.licensePlate || 'Veículo'}</strong><br/>Localização ${driverLocation ? 'atual' : 'padrão'} do motorista</div>`,
+          popup: `<div class="p-2"><strong>${driver?.name || 'Motorista'} - ${van?.plate || 'Veículo'}</strong><br/>Localização ${driverLocation ? 'atual' : 'padrão'} do motorista</div>`,
           color: '#10B981' // Verde para o motorista
         });
       }
@@ -91,7 +95,7 @@ export const GuardianMapView = React.memo(({ driver, van, students, activeTrip }
         isValid: false
       };
     }
-  }, [driverLocation, nextDestination, activeRoute, driver?.name, van?.licensePlate]);
+  }, [driverLocation, nextDestination, activeRoute, driver?.name, van?.plate]);
 
   // Renderização condicional APÓS todos os hooks
   if (isLoading) {
@@ -102,6 +106,30 @@ export const GuardianMapView = React.memo(({ driver, van, students, activeTrip }
             <div className="animate-spin w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
             <p className="text-sm">Verificando rota ativa...</p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Se há rota ativa e modo tempo real está habilitado, usar o componente de tempo real
+  if (hasActiveRoute && useRealtimeMode && (realtimeData || isCapturing)) {
+    return (
+      <div className="w-full h-full relative">
+        <RealtimeMapView 
+          guardianId={driver?.id || 'unknown'} 
+          className="w-full h-full"
+        />
+        
+        {/* Toggle para modo clássico */}
+        <div className="absolute bottom-4 right-4">
+          <button
+            onClick={() => setUseRealtimeMode(false)}
+            className="bg-white rounded-lg shadow-lg p-2 text-gray-600 hover:text-gray-800 transition-colors flex items-center gap-2 text-sm"
+            title="Alternar para modo clássico"
+          >
+            <MapPin className="w-4 h-4" />
+            Modo Clássico
+          </button>
         </div>
       </div>
     );
@@ -219,7 +247,7 @@ export const GuardianMapView = React.memo(({ driver, van, students, activeTrip }
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Veículo:</span>
-                  <span className="font-medium text-gray-800">{van?.licensePlate || 'Carregando...'}</span>
+                  <span className="font-medium text-gray-800">{van?.plate || 'Carregando...'}</span>
                 </div>
               </div>
             </div>
@@ -253,15 +281,28 @@ export const GuardianMapView = React.memo(({ driver, van, students, activeTrip }
           </div>
           <div className="text-xs text-gray-600 space-y-1">
             <div>Motorista: <span className="font-medium">{driver?.name || 'N/A'}</span></div>
-            <div>Veículo: <span className="font-medium">{van?.licensePlate || 'N/A'}</span></div>
+            <div>Veículo: <span className="font-medium">{van?.plate || 'N/A'}</span></div>
             {nextDestination && (
               <div>Próximo: <span className="font-medium">{nextDestination.studentName || 'Destino'}</span></div>
             )}
           </div>
         </div>
         
-        {/* Botão para alternar para modo simplificado em caso de problemas */}
-        <div className="absolute top-4 right-4">
+        {/* Controles do mapa */}
+        <div className="absolute top-4 right-4 flex flex-col gap-2">
+          {/* Toggle para modo tempo real */}
+          {hasActiveRoute && (
+            <button
+              onClick={() => setUseRealtimeMode(true)}
+              className="bg-white rounded-lg shadow-lg p-2 text-gray-600 hover:text-gray-800 transition-colors flex items-center gap-2 text-sm"
+              title="Alternar para modo tempo real"
+            >
+              <Navigation className="w-4 h-4" />
+              Tempo Real
+            </button>
+          )}
+          
+          {/* Botão para modo simplificado */}
           <button
             onClick={() => setMapError(true)}
             className="bg-white rounded-lg shadow-lg p-2 text-gray-600 hover:text-gray-800 transition-colors"
