@@ -28,6 +28,10 @@ Facilitar e modernizar o transporte escolar através de tecnologia, proporcionan
 - **Gerenciamento de Estado**: React Hooks + LocalStorage
 - **Build Tool**: Vite 5.4.1
 - **Notificações**: Web Notifications API + BroadcastChannel API
+- **Sistema de Áudio**: Web Audio API + HTML5 Audio
+- **Rastreamento GPS**: Geolocation API + Vehicle Tracking Service
+- **Tempo Real**: Real-time Data Service + Polling System
+- **Debug e Logs**: Sistema de logging extensivo para troubleshooting
 
 ### Estrutura do Projeto
 ```
@@ -35,7 +39,20 @@ src/
 ├── components/          # Componentes React reutilizáveis
 ├── pages/              # Páginas principais da aplicação
 ├── hooks/              # Hooks customizados
+│   ├── useDriverData.ts        # Gerenciamento completo de dados do motorista
+│   ├── useGuardianData.ts      # Dados e notificações do responsável
+│   ├── useRouteTracking.ts     # Rastreamento de rotas ativas
+│   ├── useRealtimeData.ts      # Dados em tempo real
+│   ├── useVehicleTracking.ts   # Rastreamento de veículo
+│   └── useNotificationIntegration.ts # Integração de notificações
 ├── services/           # Serviços e APIs
+│   ├── audioService.ts         # Sistema de áudio avançado
+│   ├── notificationService.ts  # Gerenciamento de notificações
+│   ├── realTimeNotificationService.ts # Notificações em tempo real
+│   ├── routeTrackingService.ts # Rastreamento de rotas
+│   ├── realtimeDataService.ts  # Captura de dados em tempo real
+│   ├── vehicleTrackingService.ts # Rastreamento de veículo
+│   └── routeHistoryService.ts  # Histórico de rotas
 ├── types/              # Definições TypeScript
 ├── lib/                # Utilitários e configurações
 └── docs/               # Documentação técnica
@@ -157,7 +174,12 @@ type NotificationSoundType =
 ```
 
 #### Recursos Avançados
-- **Som Personalizado**: Diferentes sons para cada tipo de evento
+- **Som Personalizado**: Sistema de buzina personalizada (`buzina-van.mp3`)
+- **Fallback Inteligente**: Tom sintético (800Hz, 0.3s) quando arquivo não disponível
+- **Gerenciamento de Permissões**: Detecção automática e solicitação de permissões de áudio
+- **Debug Extensivo**: Logs detalhados para troubleshooting de problemas de áudio
+- **Múltiplas Instâncias**: Permite sobreposição de sons para notificações simultâneas
+- **Configurações Persistentes**: Preferências de áudio salvas no localStorage
 - **Vibração**: Feedback tátil em dispositivos móveis
 - **Persistência**: Armazenamento local das notificações
 - **Indicador de Conectividade**: Status da conexão em tempo real
@@ -183,15 +205,82 @@ type NotificationSoundType =
 ### 3. Gerenciamento de Estado
 
 #### Hooks Customizados
-- **useDriverData**: Gerenciamento de dados do motorista
+- **useDriverData**: Gerenciamento completo de dados do motorista
+  - Controle de viagens ativas e histórico
+  - Sistema de notificações para responsáveis
+  - Integração com rastreamento de rotas
+  - Gerenciamento de estudantes e status de embarque/desembarque
 - **useGuardianData**: Gerenciamento de dados do responsável
-- **useRealTimeNotifications**: Sistema de notificações
+  - Sincronização automática via localStorage events
+  - Integração com sistema de notificações em tempo real
+  - Carregamento de notificações armazenadas
 - **useRouteTracking**: Rastreamento de rotas ativas
+  - Recuperação automática de rotas após recarregamento
+  - Verificação múltipla para garantir inicialização
+  - Integração com serviços de rastreamento
+- **useRealtimeData**: Captura de dados em tempo real
+  - Integração com rastreamento de veículo
+  - Gerenciamento de estado de captura
+  - Tratamento de erros e loading states
+- **useVehicleTracking**: Rastreamento específico de veículo
+- **useNotificationIntegration**: Integração completa de notificações
 
 #### Persistência
 - **LocalStorage**: Armazenamento principal
 - **Session Management**: Controle de sessões
 - **Data Validation**: Validação de integridade
+
+### 4. Sistema de Áudio Avançado
+
+#### AudioService
+- **Arquivo Principal**: `audioService.ts` com sistema de logs detalhados
+- **Buzina Personalizada**: Utiliza arquivo `buzina-van.mp3` para todas as notificações
+- **Fallback Inteligente**: Tom sintético quando arquivo não disponível
+- **Gerenciamento de Permissões**: Detecção e solicitação automática
+- **Debug Extensivo**: Logs detalhados para troubleshooting
+- **Múltiplas Instâncias**: Permite sobreposição de sons
+- **Configurações Persistentes**: Preferências salvas no localStorage
+
+#### Funcionalidades Técnicas
+```typescript
+// Tipos de som suportados
+type NotificationSoundType = 
+  | 'route_started' | 'van_arrived' | 'embarked' 
+  | 'at_school' | 'disembarked' | 'route_finished' | 'default';
+
+// Métodos principais
+- playNotificationSound(type): Reprodução com logs detalhados
+- testSound(): Teste de buzina para configurações
+- requestAudioPermission(): Solicitação de permissões
+- hasAudioFile(type): Verificação de disponibilidade
+```
+
+### 5. Sistema de Rastreamento GPS Aprimorado
+
+#### VehicleTrackingService
+- **Rastreamento Avançado**: Configurações de alta precisão
+- **Opções Configuráveis**: enableHighAccuracy, timeout, maximumAge
+- **Integração com RealtimeDataService**: Captura contínua de dados
+- **Tratamento de Erros**: Gerenciamento robusto de falhas de GPS
+
+#### RouteTrackingService
+- **Gerenciamento de Rotas Ativas**: Controle completo do ciclo de vida
+- **Persistência de Localização**: Armazenamento de pontos GPS
+- **Integração com Histórico**: Salvamento automático via routeHistoryService
+- **Recuperação Automática**: Restauração de rotas após interrupções
+
+### 6. Melhorias de Resiliência e Debug
+
+#### Sistema de Logs
+- **Logs Detalhados**: Em todos os componentes críticos para debugging
+- **Categorização**: Diferentes níveis e tipos de log (🔊, 🚗, 📱, etc.)
+- **Rastreamento de Fluxo**: Acompanhamento completo de operações
+
+#### Recuperação Automática
+- **Restauração de Rotas**: Após recarregamento ou perda de conexão
+- **Verificação Múltipla**: Sistema de retry para garantir inicialização
+- **Limpeza Inteligente**: Remoção segura de dados antigos
+- **Prevenção de Duplicatas**: Sistema robusto usando IDs únicos
 
 ---
 
@@ -274,6 +363,58 @@ interface Trip {
   date: string;
   status: 'planned' | 'in_progress' | 'completed';
   students: TripStudent[];
+  startTime?: string;
+  endTime?: string;
+  direction: 'to_school' | 'to_home';
+}
+```
+
+#### Estruturas de Dados Avançadas
+
+##### VehiclePosition
+```typescript
+interface VehiclePosition {
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  accuracy?: number;
+  speed?: number;
+  heading?: number;
+}
+```
+
+##### RouteLocation
+```typescript
+interface RouteLocation {
+  lat: number;
+  lng: number;
+  timestamp: string;
+  accuracy?: number;
+}
+```
+
+##### ActiveRoute
+```typescript
+interface ActiveRoute {
+  id: string;
+  driverId: string;
+  driverName: string;
+  direction: 'to_school' | 'to_home';
+  startTime: string;
+  endTime?: string;
+  locations: RouteLocation[];
+  students: string[];
+}
+```
+
+##### RealtimeRouteData
+```typescript
+interface RealtimeRouteData {
+  routeId: string;
+  vehiclePosition: VehiclePosition;
+  activeStudents: string[];
+  nextDestination?: string;
+  estimatedArrival?: string;
 }
 ```
 
@@ -401,6 +542,76 @@ interface Trip {
 
 ---
 
+## 🔧 Arquitetura de Serviços Detalhada
+
+### NotificationService
+- **Gerenciamento Centralizado**: Controle de todas as notificações do sistema
+- **Integração com AudioService**: Reprodução automática de sons
+- **Persistência**: Armazenamento local de notificações
+- **Métodos Específicos**: `notifyRouteStarted`, `notifyVanArrived`, etc.
+- **Prevenção de Duplicatas**: Sistema robusto de controle
+
+### RealTimeNotificationService
+- **Notificações em Tempo Real**: Sistema de comunicação instantânea
+- **BroadcastChannel**: Comunicação entre abas/janelas
+- **Storage Events**: Sincronização via localStorage
+- **Tipos Avançados**: route_delayed, arriving_soon, route_completed
+
+### RealtimeDataService
+- **Captura Contínua**: Dados de localização e status em tempo real
+- **Integração Multi-Serviço**: Coordenação entre diferentes serviços
+- **Gerenciamento de Estado**: Controle de captura ativa/inativa
+- **Tratamento de Erros**: Sistema robusto de recuperação
+
+### RouteHistoryService
+- **Persistência de Histórico**: Armazenamento completo de rotas executadas
+- **Métricas Detalhadas**: Tempo, distância, estudantes atendidos
+- **Relatórios**: Geração de dados para análise
+
+## 🔄 Fluxos de Dados Detalhados
+
+### Fluxo de Execução de Rota
+1. **Inicialização**: `useDriverData.startTrip()` → `routeTrackingService.startRoute()`
+2. **Rastreamento**: `vehicleTrackingService` → `realtimeDataService` → `useRealtimeData`
+3. **Notificações**: `notificationService` → `audioService` → `realTimeNotificationService`
+4. **Finalização**: `routeTrackingService.endRoute()` → `routeHistoryService.saveRoute()`
+
+### Fluxo de Notificações
+1. **Evento**: Embarque/desembarque de estudante
+2. **Processamento**: `useDriverData` identifica responsáveis
+3. **Envio**: `notificationService.sendNotification()`
+4. **Áudio**: `audioService.playNotificationSound()`
+5. **Tempo Real**: `realTimeNotificationService.broadcast()`
+6. **Recepção**: `useGuardianData` recebe via storage events
+
+### Fluxo de Recuperação Automática
+1. **Detecção**: `useRouteTracking` verifica localStorage
+2. **Validação**: Verificação de integridade dos dados
+3. **Restauração**: Reconstrução do estado da aplicação
+4. **Sincronização**: Atualização de todos os hooks dependentes
+
+## 🛠️ Configurações de Desenvolvimento e Produção
+
+### Configurações de Debug
+- **Logs Extensivos**: Sistema de logging categorizado
+- **Console Groups**: Organização visual de logs
+- **Performance Monitoring**: Rastreamento de operações críticas
+- **Error Boundaries**: Captura e tratamento de erros
+
+### Configurações de Áudio
+- **Volume Padrão**: 0.8 para notificações
+- **Playback Rate**: 1.0 para reprodução normal
+- **Fallback Frequency**: 800Hz para tom sintético
+- **Fallback Duration**: 0.3s para tom de backup
+
+### Configurações de GPS
+- **High Accuracy**: Habilitado por padrão
+- **Timeout**: Configurável por serviço
+- **Maximum Age**: Controle de cache de localização
+- **Fallback Location**: Coordenadas padrão quando GPS indisponível
+
+---
+
 ## 🔮 Roadmap e Funcionalidades Futuras
 
 ### Versão 2.0
@@ -457,6 +668,47 @@ Com sua arquitetura robusta, interface amigável e recursos avançados de notifi
 
 ---
 
+---
+
+## 📋 Componentes Específicos e Responsabilidades
+
+### Componentes de Interface
+- **ActiveTripExecution**: Interface principal para execução de rotas
+  - Integração com `useRouteTracking` e `useDriverData`
+  - Controle de swipes para embarque/desembarque
+  - Exibição de mapa em tempo real
+  - Botões de ação para finalização de rota
+
+### Hooks de Integração
+- **useNotificationIntegration**: Orquestração de notificações
+  - Coordenação entre diferentes serviços de notificação
+  - Gerenciamento de estado de notificações
+  - Integração com sistema de áudio
+
+### Serviços de Backup
+- **useDriverData_backup**: Versão de backup com funcionalidades alternativas
+  - Sistema de fallback para operações críticas
+  - Implementação alternativa de lógicas principais
+
+## 🔍 Funcionalidades de Recuperação Automática
+
+### Sistema de Retry
+- **Inicialização de Rotas**: Múltiplas tentativas com delays
+- **Carregamento de Áudio**: Retry automático em caso de falha
+- **Sincronização de Dados**: Verificação periódica de consistência
+
+### Prevenção de Perda de Dados
+- **Auto-save**: Salvamento automático de progresso
+- **Verificação de Integridade**: Validação contínua de dados
+- **Backup Local**: Múltiplas camadas de persistência
+
+### Tratamento de Desconexão
+- **Modo Offline**: Funcionalidades básicas sem internet
+- **Sincronização Posterior**: Envio de dados quando conexão restaurada
+- **Cache Inteligente**: Armazenamento otimizado de dados críticos
+
+---
+
 **Documento gerado em**: Janeiro 2025  
-**Versão**: 1.0  
-**Status**: Análise Completa do Sistema Atual
+**Versão**: 2.0  
+**Status**: Análise Técnica Detalhada com Implementações Específicas
