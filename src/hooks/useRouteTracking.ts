@@ -12,7 +12,12 @@ export const useRouteTracking = () => {
     
     const initializeRoute = () => {
       const route = routeTrackingService.getActiveRoute();
-      console.log('🔍 Rota encontrada no serviço:', route ? 'SIM' : 'NÃO');
+      console.log('🔍 Rota encontrada no service:', route ? 'SIM' : 'NÃO');
+      console.log('Debug: Route details:', route ? { isActive: route.isActive, driverName: route.driverName, id: route.id } : 'null');
+      console.log('Debug: Driver encontrado:', route ? !!route.driverName : false);
+      console.log('Debug: Conteúdo de activeRoute no localStorage:', localStorage.getItem('activeRoute'));
+      console.log('Debug: Flag de persistência:', localStorage.getItem('routePersistenceFlag'));
+      console.log('Debug: Tempo desde o início da rota:', route ? `${Math.floor((Date.now() - new Date(route.startTime).getTime()) / (1000 * 60))}min` : 'N/A');
       
       setActiveRoute(route);
       setIsLoading(false);

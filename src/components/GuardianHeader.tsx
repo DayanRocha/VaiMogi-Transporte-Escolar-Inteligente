@@ -1,7 +1,8 @@
-import { Menu, Bell, LogOut } from 'lucide-react';
+import { Menu, Bell, LogOut, Volume2 } from 'lucide-react';
 import { Guardian } from '@/types/driver';
 import { GuardianNotification } from '@/hooks/useGuardianData';
 import { RealTimeIndicator } from '@/components/RealTimeIndicator';
+import { audioService } from '@/services/audioService';
 
 interface GuardianHeaderProps {
   guardian: Guardian;
@@ -47,7 +48,7 @@ export const GuardianHeader = ({
         <RealTimeIndicator />
       </div>
 
-      {/* Right side - Notifications and Logout */}
+      {/* Right side - Notifications, Test Sound and Logout */}
       <div className="flex items-center gap-2">
         <button
           onClick={onNotificationClick}
@@ -61,6 +62,8 @@ export const GuardianHeader = ({
             </span>
           )}
         </button>
+        
+
         
         <button
           onClick={onLogout}

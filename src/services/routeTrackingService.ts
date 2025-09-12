@@ -225,55 +225,61 @@ class RouteTrackingService {
   }
 
   getActiveRoute(): ActiveRoute | null {
-    try {
-      const stored = localStorage.getItem('activeRoute');
-      const persistenceFlag = localStorage.getItem('routePersistenceFlag');
-      
-      if (stored) {
-        const route = JSON.parse(stored);
-        
-        // Verificar se a rota não é muito antiga (mais de 6 horas para ser mais restritivo)
-        const startTime = new Date(route.startTime);
-        const now = new Date();
-        const hoursDiff = (now.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-        
-        if (hoursDiff > 6) {
-          console.log('⏰ Rota muito antiga (>6h), limpando automaticamente...');
-          this.cleanupOldRoute();
-          return null;
-        }
-        
-        // Verificar se a flag de persistência existe (indica que a rota não foi encerrada)
-        if (persistenceFlag !== 'true') {
-          console.log('🚫 Rota sem flag de persistência, provavelmente foi encerrada. Limpando...');
-          this.cleanupOldRoute();
-          return null;
-        }
-        
-        // Verificar se a rota foi explicitamente marcada como inativa
-        if (!route.isActive) {
-          console.log('🚫 Rota marcada como inativa, limpando...');
-          this.cleanupOldRoute();
-          return null;
-        }
-        
-        // Se passou por todas as verificações, a rota é válida
-        console.log('✅ Rota ativa válida encontrada:', {
-          id: route.id,
-          driverName: route.driverName,
-          hoursActive: hoursDiff.toFixed(1),
-          hasPersistenceFlag: persistenceFlag === 'true'
-        });
-        return route;
-      }
-    } catch (error) {
-      console.error('❌ Erro ao carregar rota ativa:', error);
-      // Em caso de erro, limpar dados corrompidos
-      this.cleanupOldRoute();
-    }
+  console.log('Debug: Iniciando getActiveRoute');
+  try {
+    const stored = localStorage.getItem('activeRoute');
+    console.log('Debug: Stored activeRoute exists:', !!stored);
+    const persistenceFlag = localStorage.getItem('routePersistenceFlag');
+    console.log('Debug: Persistence flag:', persistenceFlag);
     
-    return null;
+    if (stored) {
+      const route = JSON.parse(stored);
+      
+      // Verificar se a rota não é muito antiga (mais de 6 horas para ser mais restritivo)
+      const startTime = new Date(route.startTime);
+      const now = new Date();
+      const hoursDiff = (now.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+      console.log('Debug: Hours since start:', hoursDiff);
+      
+      if (hoursDiff > 6) {
+        console.log('⏰ Rota muito antiga (>6h), limpando automaticamente...');
+        this.cleanupOldRoute();
+        return null;
+      }
+      
+      // Verificar se a flag de persistência existe (indica que a rota não foi encerrada)
+      if (persistenceFlag !== 'true') {
+        console.log('🚫 Rota sem flag de persistência, provavelmente foi encerrada. Limpando...');
+        this.cleanupOldRoute();
+        return null;
+      }
+      
+      // Verificar se a rota foi explicitamente marcada como inativa
+      if (!route.isActive) {
+        console.log('🚫 Rota marcada como inativa, limpando...');
+        this.cleanupOldRoute();
+        return null;
+      }
+      
+      // Se passou por todas as verificações, a rota é válida
+      console.log('✅ Rota ativa válida encontrada:', {
+        id: route.id,
+        driverName: route.driverName,
+        hoursActive: hoursDiff.toFixed(1),
+        hasPersistenceFlag: persistenceFlag === 'true'
+      });
+      return route;
+    }
+  } catch (error) {
+    console.error('❌ Erro ao carregar rota ativa:', error);
+    console.log('Debug: Erro detalhes:', error.message);
+    // Em caso de erro, limpar dados corrompidos
+    this.cleanupOldRoute();
   }
+  
+  console.log('Debug: Retornando null - nenhuma rota válida encontrada');
+  return null;
+}
 
   private cleanupOldRoute() {
     localStorage.removeItem('activeRoute');
@@ -339,92 +345,81 @@ class RouteTrackingService {
   }
 
   startRoute(driverId: string, driverName: string, direction: 'to_school' | 'to_home', students: any[]) {
-    const now = Date.now();
-    console.log('🔍 Tentativa de iniciar rota:', {
-      driverId,
-      driverName,
-      direction,
-      studentsCount: students.length,
-      timestamp: new Date().toISOString()
-    });
-
-    // Debounce: evitar múltiplas chamadas em menos de 2 segundos
-    if (now - this.lastRouteStartTime < 2000) {
-      console.log('⏱️ Chamada muito próxima da anterior, ignorando (debounce):', {
-        timeSinceLastCall: now - this.lastRouteStartTime,
-        lastCallTime: new Date(this.lastRouteStartTime).toISOString()
-      });
-      return this.getActiveRoute();
-    }
-
-    // SEMPRE limpar dados antigos antes de iniciar nova rota
-    console.log('🧹 Limpando dados antigos antes de iniciar nova rota...');
-    this.forceCleanup();
-
-    // Verificar novamente se há rota ativa após limpeza
-    const existingRoute = this.getActiveRoute();
-    if (existingRoute && existingRoute.isActive) {
-      console.log('⚠️ Ainda existe uma rota ativa após limpeza, algo está errado:', {
-        existingId: existingRoute.id,
-        existingDriver: existingRoute.driverName
-      });
-      // Forçar limpeza mais agressiva
-      localStorage.clear();
-      console.log('🚨 Limpeza completa do localStorage realizada');
-    }
-
-    console.log('✅ Sistema limpo, criando nova rota...');
-    this.lastRouteStartTime = now;
-
-    const route: ActiveRoute = {
-      id: Date.now().toString(),
-      driverId,
-      driverName,
-      direction,
-      startTime: new Date().toISOString(),
-      isActive: true,
-      studentPickups: students.map(student => ({
-        studentId: student.id,
-        studentName: student.name,
-        address: student.address || 'Endereço não informado',
-        lat: student.lat,
-        lng: student.lng,
-        status: 'pending'
-      }))
-    };
-
-    // Persistir rota com garantia de durabilidade
-    this.persistRoute(route);
-    
-    // Iniciar rastreamento de localização
-    this.startLocationTracking();
-    
-    // Iniciar traçado automático de rota
-    this.startAutomaticRouteTracing(route);
-    
-    // Notificar listeners
-    this.notifyListeners(route);
-    
-    console.log('🚀 Rota iniciada com persistência garantida:', {
-      id: route.id,
-      driverName: route.driverName,
-      studentsCount: route.studentPickups.length,
-      direction: route.direction
-    });
-    
-    return route;
+  console.log('Debug: Iniciando startRoute');
+  console.log('Debug: Parâmetros recebidos:', { driverId, driverName, direction, studentsCount: students.length });
+  
+  const now = Date.now();
+  console.log('Debug: Verificando debounce - time since last:', now - this.lastRouteStartTime);
+  
+  if (now - this.lastRouteStartTime < 2000) {
+    console.log('Debug: Debounce ativado - ignorando chamada');
+    return this.getActiveRoute();
   }
+  
+  console.log('Debug: Limpando dados antigos via forceCleanup');
+  this.forceCleanup();
+
+  console.log('Debug: Verificando se limpeza foi efetiva - activeRoute após cleanup:', !!localStorage.getItem('activeRoute'));
+  
+  const existingRoute = this.getActiveRoute();
+  if (existingRoute && existingRoute.isActive) {
+    console.log('Debug: Rota existente ainda ativa após cleanup - forçando limpeza agressiva');
+    localStorage.clear();
+  } else {
+    console.log('Debug: Sistema limpo com sucesso');
+  }
+  
+  this.lastRouteStartTime = now;
+  
+  console.log('Debug: Criando novo objeto de rota');
+  const route: ActiveRoute = {
+    id: Date.now().toString(),
+    driverId,
+    driverName,
+    direction,
+    startTime: new Date().toISOString(),
+    isActive: true,
+    studentPickups: students.map(student => ({
+      studentId: student.id,
+      studentName: student.name,
+      address: student.address || 'Endereço não informado',
+      lat: student.lat,
+      lng: student.lng,
+      status: 'pending'
+    }))
+  };
+
+  console.log('Debug: Chamando persistRoute');
+  this.persistRoute(route);
+  
+  console.log('Debug: Verificando persistência - activeRoute após persist:', !!localStorage.getItem('activeRoute'));
+  console.log('Debug: Persistence flag após persist:', localStorage.getItem('routePersistenceFlag'));
+  
+  console.log('Debug: Iniciando location tracking');
+  this.startLocationTracking();
+  
+  console.log('Debug: Iniciando automatic route tracing');
+  this.startAutomaticRouteTracing(route);
+  
+  console.log('Debug: Notificando listeners');
+  this.notifyListeners(route);
+  
+  console.log('Debug: Rota iniciada com sucesso');
+  return route;
+}
 
   private persistRoute(route: ActiveRoute) {
-    try {
-      localStorage.setItem('activeRoute', JSON.stringify(route));
-      localStorage.setItem('routeLastSave', Date.now().toString());
-      localStorage.setItem('routePersistenceFlag', 'true'); // Flag extra de segurança
-      console.log('💾 Rota persistida com segurança no localStorage');
-    } catch (error) {
-      console.error('❌ Erro ao persistir rota:', error);
-    }
+  console.log('Debug: Iniciando persistRoute');
+  try {
+    localStorage.setItem('activeRoute', JSON.stringify(route));
+    localStorage.setItem('routeLastSave', Date.now().toString());
+    localStorage.setItem('routePersistenceFlag', 'true');
+    console.log('Debug: Itens setados com sucesso');
+  } catch (error) {
+    console.error('Debug: Erro ao persistir:', error.message);
   }
+  console.log('Debug: Finalizando persistRoute');
+}
 
   // ÚNICO método que pode encerrar uma rota - DEVE ser chamado explicitamente
   endRoute() {

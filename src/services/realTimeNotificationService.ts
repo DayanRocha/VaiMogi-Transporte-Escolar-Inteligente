@@ -4,7 +4,7 @@ import { notificationService } from './notificationService';
 export interface RealTimeNotification {
   id: string;
   guardianId: string;
-  type: 'route_started' | 'arrived_at_location' | 'student_picked_up' | 'student_dropped_off' | 'route_completed' | 'route_delayed' | 'arriving_soon';
+  type: 'route_started' | 'van_arrived' | 'embarked' | 'at_school' | 'disembarked' | 'route_completed' | 'route_delayed' | 'arriving_soon';
   title: string;
   message: string;
   timestamp: string;
@@ -88,7 +88,14 @@ class RealTimeNotificationService {
 
   // Adicionar listener
   addListener(callback: (notification: GuardianNotification) => void) {
-    this.listeners.push(callback);
+    console.log('🔧 DEBUG: Tentando adicionar listener...');
+    console.log('🔧 DEBUG: Listeners atuais antes da adição:', this.listeners.length);
+    if (!this.listeners.includes(callback)) {
+      this.listeners.push(callback);
+      console.log('✅ DEBUG: Listener adicionado com sucesso, total:', this.listeners.length);
+    } else {
+      console.log('⚠️ DEBUG: Listener já existe, não adicionado');
+    }
     
     // Inicializar se ainda não foi
     if (!this.isInitialized) {
@@ -103,18 +110,25 @@ class RealTimeNotificationService {
 
   // Notificar todos os listeners
   private notifyListeners(notification: GuardianNotification) {
-    this.listeners.forEach(listener => {
+    console.log('🔊 DEBUG: notifyListeners chamado para', this.listeners.length, 'listeners');
+    this.listeners.forEach((listener, index) => {
       try {
+        console.log(`🔊 DEBUG: Chamando listener ${index + 1}/${this.listeners.length}`);
         listener(notification);
+        console.log(`✅ DEBUG: Listener ${index + 1} executado com sucesso`);
       } catch (error) {
-        console.error('❌ Erro ao notificar listener:', error);
+        console.error(`❌ DEBUG: Erro ao notificar listener ${index + 1}:`, error);
       }
     });
+    console.log('🔊 DEBUG: Todos os listeners foram processados');
   }
 
   // Enviar notificação em tempo real
   sendRealTimeNotification(notification: GuardianNotification) {
     try {
+      console.log('🔊 DEBUG: sendRealTimeNotification chamado com:', notification);
+      console.log('🔊 DEBUG: Número de listeners registrados:', this.listeners.length);
+      
       // Enviar via BroadcastChannel para outras abas
       if (this.broadcastChannel) {
         this.broadcastChannel.postMessage({
@@ -122,13 +136,17 @@ class RealTimeNotificationService {
           notification,
           timestamp: Date.now()
         });
-        console.log('📡 Notificação enviada via BroadcastChannel');
+        console.log('📡 DEBUG: Notificação enviada via BroadcastChannel');
+      } else {
+        console.log('⚠️ DEBUG: BroadcastChannel não disponível');
       }
 
       // Notificar listeners locais
+      console.log('🔊 DEBUG: Notificando listeners locais...');
       this.notifyListeners(notification);
+      console.log('✅ DEBUG: Listeners notificados com sucesso');
     } catch (error) {
-      console.error('❌ Erro ao enviar notificação em tempo real:', error);
+      console.error('❌ DEBUG: Erro ao enviar notificação em tempo real:', error);
     }
   }
 
@@ -177,7 +195,7 @@ class RealTimeNotificationService {
   }
 
   // Enviar notificação para responsável específico
-  sendNotification(notification: Omit<RealTimeNotification, 'id' | 'timestamp' | 'isRead'>) {
+  async sendNotification(notification: Omit<RealTimeNotification, 'id' | 'timestamp' | 'isRead'>) {
     const fullNotification: RealTimeNotification = {
       ...notification,
       id: Date.now().toString(),
@@ -203,7 +221,109 @@ class RealTimeNotificationService {
     // Também disparar evento customizado para garantia
     this.dispatchCustomEvent(fullNotification);
 
+    // Som será reproduzido apenas no lado do responsável via useGuardianData.ts
+    // Removido daqui para evitar reprodução dupla e garantir que toque apenas para o responsável
+
     console.log('✅ Notificação processada para:', notification.guardianId, fullNotification.title);
+  }
+
+  // Enviar notificação genérica diretamente para um responsável específico
+  async sendNotificationToGuardian(guardianId: string, payload: { type: string; details?: any }) {
+    try {
+      const { type, details } = payload;
+
+      // Funções auxiliares para gerar título e mensagem da notificação
+      const title = this.generateTitle(type, details);
+      const message = this.generateMessage(type, details);
+
+      await this.sendNotification({
+        guardianId,
+        type: type as any,
+        title,
+        message,
+        location: details?.location,
+        studentId: details?.studentId,
+        studentName: details?.studentName
+      });
+    } catch (error) {
+      console.error('❌ Erro ao enviar notificação para responsável:', error);
+    }
+  }
+
+  // Gerar título da notificação com base no tipo
+  private generateTitle(type: string, details?: any): string {
+    const { direction } = details || {};
+    
+    switch (type) {
+      case 'route_started':
+        return 'Rota iniciada';
+      case 'van_arrived':
+        return 'Van chegou ao ponto de embarque';
+      case 'embarked':
+        return 'Estudante embarcado';
+      case 'at_school':
+        return 'Estudante desembarcado na escola';
+      case 'disembarked':
+        if (direction === 'to_school') {
+          return 'Estudante desembarcado na escola';
+        } else {
+          return 'Estudante desembarcado em casa';
+        }
+      case 'route_completed':
+        return 'Rota concluída';
+      default:
+        return 'Notificação';
+    }
+  }
+
+  // Gerar mensagem da notificação com base no tipo
+  private generateMessage(type: string, details?: any): string {
+    const { studentName, location, direction } = details || {};
+
+    switch (type) {
+      case 'route_started':
+        return direction === 'to_school'
+          ? `A rota para a escola foi iniciada.`
+          : `A rota de retorno para casa foi iniciada.`;
+      case 'van_arrived':
+        if (direction === 'to_home') {
+          return studentName
+            ? `A van chegou na escola para buscar ${studentName}.`
+            : 'A van chegou na escola para buscar o estudante.';
+        } else {
+          return studentName
+            ? `A van chegou ao ponto de embarque de ${studentName}.`
+            : 'A van chegou ao ponto de embarque.';
+        }
+      case 'embarked':
+        if (direction === 'to_school') {
+          return studentName
+            ? `${studentName} embarcou e está a caminho da escola.`
+            : 'O estudante embarcou e está a caminho da escola.';
+        } else {
+          return studentName
+            ? `${studentName} embarcou e está a caminho de casa.`
+            : 'O estudante embarcou e está a caminho de casa.';
+        }
+      case 'at_school':
+        return studentName
+          ? `${studentName} foi desembarcado na escola.`
+          : 'O estudante foi desembarcado na escola.';
+      case 'disembarked':
+        if (direction === 'to_school') {
+          return studentName
+            ? `${studentName} foi desembarcado na escola.`
+            : 'O estudante foi desembarcado na escola.';
+        } else {
+          return studentName
+            ? `${studentName} foi desembarcado em casa.`
+            : 'O estudante foi desembarcado em casa.';
+        }
+      case 'route_completed':
+        return 'A rota foi concluída.';
+      default:
+        return 'Você possui uma nova notificação.';
+    }
   }
 
   // Disparar evento customizado para notificações

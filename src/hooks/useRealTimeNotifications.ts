@@ -31,12 +31,7 @@ export const useRealTimeNotifications = (guardianId: string) => {
       return [notification, ...prev];
     });
 
-    // Tocar som de notificação
-    try {
-      await audioService.playNotificationSound('default');
-    } catch (error) {
-      console.warn('Não foi possível tocar som de notificação:', error);
-    }
+    // Tocar som de notificação personalizado pelo tipo\n    try {\n      await audioService.playNotificationSound(notification.type as NotificationSoundType);\n    } catch (error) {\n      console.warn('Não foi possível tocar som de notificação:', error);\n    }
 
     // Mostrar notificação do browser (se permitido)
     if ('Notification' in window && Notification.permission === 'granted') {

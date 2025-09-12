@@ -310,6 +310,15 @@ export const useGuardianData = () => {
   useEffect(() => {
     const updateData = () => {
       const newDriver = getDriverData(guardian.id);
+      console.log('Debug: Driver encontrado in guardian:', !!newDriver);
+      if (!newDriver) {
+        console.log('Debug: Motivo driver não encontrado: Nenhum dado no localStorage ou sem match para guardian ' + guardian.id);
+      }
+      const activeRoute = routeTrackingService.getActiveRoute();
+      console.log('Debug: Rota ativa detectada no guardian hook:', activeRoute ? 'SIM' : 'NÃO');
+      if (activeRoute) {
+        console.log('Debug: Route details in guardian:', { isActive: activeRoute.isActive, driverName: activeRoute.driverName });
+      }
       const newVan = newDriver ? getVanData(newDriver.id) : null;
       const newStudents = getGuardianChildren(guardian.id);
       const newSchools = getSchools();
@@ -338,8 +347,13 @@ export const useGuardianData = () => {
     };
   }, [guardian.id]);
 
-  // Escutar notificações reais do serviço (apenas tempo real para evitar duplicatas)
+  // Inicializar e escutar notificações reais do serviço (apenas tempo real para evitar duplicatas)
   useEffect(() => {
+    // Inicializar o serviço de notificações em tempo real
+    console.log('🔧 DEBUG: Inicializando realTimeNotificationService...');
+    realTimeNotificationService.init();
+    console.log('✅ DEBUG: realTimeNotificationService inicializado');
+    
     // Set para rastrear IDs de notificações já processadas
     const processedNotifications = new Set<string>();
     
@@ -369,11 +383,18 @@ export const useGuardianData = () => {
       // Reproduzir som da buzina ao receber notificação
       try {
         const soundType: NotificationSoundType = notification.type as NotificationSoundType;
-        console.log('🔊 Tentando reproduzir som para tipo:', soundType);
+        console.log('🔊 DEBUG: Tentando reproduzir som para tipo:', soundType);
+        console.log('🔊 DEBUG: AudioService habilitado:', audioService.isAudioEnabled());
+        console.log('🔊 DEBUG: Deve usar arquivos de áudio:', audioService.shouldUseAudioFiles());
+        
+        // Inicializar audioService se necessário
+        await audioService.init();
+        
         await audioService.playNotificationSound(soundType);
-        console.log('✅ Som reproduzido com sucesso');
+        console.log('✅ DEBUG: Som reproduzido com sucesso');
       } catch (error) {
-        console.error('❌ Erro ao reproduzir som:', error);
+        console.error('❌ DEBUG: Erro detalhado ao reproduzir som:', error);
+        console.error('❌ DEBUG: Stack trace:', error.stack);
       }
     };
   

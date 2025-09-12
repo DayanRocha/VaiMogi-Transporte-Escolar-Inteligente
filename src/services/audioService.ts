@@ -85,27 +85,68 @@ class AudioService {
 
   // Sons específicos para cada tipo de notificação - sempre usa buzina
   async playNotificationSound(type: NotificationSoundType) {
-    if (!this.isEnabled) return;
+    console.log(`🔊 DEBUG: ===== INÍCIO playNotificationSound =====`);
+    console.log(`🔊 DEBUG: Tipo de notificação: ${type}`);
+    console.log('🔊 DEBUG: AudioService habilitado:', this.isEnabled);
+    console.log('🔊 DEBUG: Deve usar arquivos de áudio:', this.useAudioFiles);
+    console.log('🔊 DEBUG: AudioContext estado:', this.audioContext?.state);
+    console.log('🔊 DEBUG: Permissão de áudio no localStorage:', localStorage.getItem('notificationSoundsEnabled'));
+    
+    if (!this.isEnabled) {
+      console.log('🔇 DEBUG: Sons desabilitados, pulando reprodução');
+      return;
+    }
 
-    console.log('🔊 Reproduzindo buzina para notificação:', type);
+    // Verificar se o usuário já interagiu com a página
+    console.log('🔊 DEBUG: Verificando interação do usuário...');
+    try {
+      // Tentar criar um contexto de áudio para verificar permissões
+      if (!this.audioContext) {
+        console.log('🔊 DEBUG: Criando AudioContext...');
+        await this.initAudioContext();
+      }
+      console.log('🔊 DEBUG: AudioContext criado/verificado, estado:', this.audioContext?.state);
+    } catch (error) {
+      console.error('🔊 DEBUG: Erro ao inicializar AudioContext:', error);
+    }
 
-    // Sempre tentar reproduzir a buzina primeiro
-    if (await this.playAudioFile(type)) {
+    // Tentar reproduzir buzina primeiro
+    console.log('🔊 DEBUG: Tentando reproduzir arquivo de áudio...');
+    const playResult = await this.playAudioFile(type);
+    console.log('🔊 DEBUG: Resultado da reprodução:', playResult);
+    
+    if (playResult) {
+      console.log('🔊 DEBUG: ===== Arquivo de áudio reproduzido com SUCESSO =====');
       return; // Buzina reproduzida com sucesso
     }
 
     // Se a buzina não estiver carregada, tentar carregar e reproduzir
-    console.log('⚠️ Buzina não carregada, tentando carregar...');
-    await this.loadAllAudioFiles();
+    console.log('⚠️ DEBUG: Buzina não reproduzida, tentando carregar...');
+    try {
+      await this.loadAllAudioFiles();
+      console.log('🔊 DEBUG: Arquivos carregados, tentando reproduzir novamente...');
+    } catch (loadError) {
+      console.error('🔊 DEBUG: Erro ao carregar arquivos:', loadError);
+    }
     
     // Tentar reproduzir novamente após carregar
-    if (await this.playAudioFile(type)) {
+    const retryResult = await this.playAudioFile(type);
+    console.log('🔊 DEBUG: Resultado da segunda tentativa:', retryResult);
+    
+    if (retryResult) {
+      console.log('🔊 DEBUG: ===== Arquivo reproduzido com SUCESSO na segunda tentativa =====');
       return; // Buzina reproduzida com sucesso após carregamento
     }
 
     // Último recurso: som padrão simples
-    console.warn('❌ Não foi possível reproduzir buzina, usando tom padrão');
-    await this.generateTone(800, 0.3);
+    console.warn('❌ DEBUG: Não foi possível reproduzir buzina, usando tom padrão');
+    try {
+      await this.generateTone(800, 0.3);
+      console.log('🔊 DEBUG: Tom padrão reproduzido com sucesso');
+    } catch (toneError) {
+      console.error('❌ DEBUG: Erro ao reproduzir tom padrão:', toneError);
+    }
+    console.log(`🔊 DEBUG: ===== FIM playNotificationSound =====`);
   }
 
   // Ativar/desativar sons
@@ -222,21 +263,64 @@ class AudioService {
 
   // Reproduzir arquivo de áudio da buzina
   private async playAudioFile(type: NotificationSoundType): Promise<boolean> {
-    console.log(`🔊 Tentando reproduzir buzina para: ${type}`);
+    console.log(`🔊 DEBUG: playAudioFile chamado para: ${type}`);
     
     try {
+      // Verificar se o usuário já interagiu com a página
+      console.log('🔊 DEBUG: Verificando permissões de áudio...');
+      
       // Sempre criar uma nova instância da buzina para permitir sobreposição
+      console.log('🔊 DEBUG: Criando nova instância de Audio...');
       const audioClone = new Audio('/sounds/buzina-van.mp3');
+      console.log('🔊 DEBUG: Audio criado, configurando propriedades...');
+      
       audioClone.volume = 0.8; // Volume alto para notificações
       audioClone.playbackRate = 1.0;
       audioClone.currentTime = 0;
       
-      console.log(`🎵 Reproduzindo buzina-van.mp3 para ${type}...`);
-      await audioClone.play();
-      console.log(`✅ Buzina reproduzida com sucesso para: ${type}`);
+      // Adicionar listeners para debug
+      audioClone.addEventListener('loadstart', () => console.log('🔊 DEBUG: Iniciando carregamento do áudio'));
+      audioClone.addEventListener('canplay', () => console.log('🔊 DEBUG: Áudio pode ser reproduzido'));
+      audioClone.addEventListener('play', () => console.log('🔊 DEBUG: Reprodução iniciada'));
+      audioClone.addEventListener('ended', () => console.log('🔊 DEBUG: Reprodução finalizada'));
+      audioClone.addEventListener('error', (e) => console.error('🔊 DEBUG: Erro no áudio:', e));
+      
+      console.log(`🎵 DEBUG: Tentando reproduzir buzina-van.mp3 para ${type}...`);
+      console.log('🔊 DEBUG: Caminho do arquivo:', audioClone.src);
+      console.log('🔊 DEBUG: Estado do áudio - readyState:', audioClone.readyState);
+      console.log('🔊 DEBUG: Estado do áudio - networkState:', audioClone.networkState);
+      
+      // Tentar reproduzir
+      const playPromise = audioClone.play();
+      await playPromise;
+      
+      console.log(`✅ DEBUG: Buzina reproduzida com sucesso para: ${type}`);
       return true;
     } catch (error) {
-      console.warn(`❌ Erro ao reproduzir buzina para ${type}:`, error);
+      console.error(`❌ DEBUG: Erro detalhado ao reproduzir buzina para ${type}:`, error);
+      console.error('❌ DEBUG: Tipo do erro:', error.name);
+      console.error('❌ DEBUG: Mensagem do erro:', error.message);
+      
+      // Se for erro de interação do usuário, tentar solicitar permissão
+      if (error.name === 'NotAllowedError' || error.message.includes('user activation')) {
+        console.warn('⚠️ DEBUG: Erro de permissão de áudio - usuário precisa interagir primeiro');
+        console.warn('⚠️ DEBUG: Tentando solicitar permissão...');
+        
+        try {
+          await this.requestAudioPermission();
+          console.log('✅ DEBUG: Permissão de áudio obtida, tentando novamente...');
+          
+          // Tentar novamente após obter permissão
+          const audioRetry = new Audio('/sounds/buzina-van.mp3');
+          audioRetry.volume = 0.8;
+          await audioRetry.play();
+          console.log(`✅ DEBUG: Buzina reproduzida com sucesso após permissão para: ${type}`);
+          return true;
+        } catch (retryError) {
+          console.error('❌ DEBUG: Falha mesmo após solicitar permissão:', retryError);
+        }
+      }
+      
       return false;
     }
   }
