@@ -135,14 +135,14 @@ export const LandingPage = () => {
             <nav className="hidden md:flex items-center space-x-4">
               <Button 
                 variant="ghost" 
-                onClick={() => navigate('/auth')}
+                onClick={() => navigate('/login')}
                 className="text-gray-700 hover:text-primary"
               >
                 Entrar
               </Button>
               <Button 
                 variant="outline" 
-                onClick={() => navigate('/auth')}
+                onClick={() => navigate('/register')}
                 className="border-primary text-primary hover:bg-primary hover:text-white"
               >
                 Cadastrar
@@ -172,7 +172,7 @@ export const LandingPage = () => {
                 <Button 
                   variant="ghost" 
                   onClick={() => {
-                    navigate('/auth');
+                    navigate('/login');
                     setIsMenuOpen(false);
                   }}
                   className="justify-start text-gray-700 hover:text-primary"
@@ -182,7 +182,7 @@ export const LandingPage = () => {
                 <Button 
                   variant="outline" 
                   onClick={() => {
-                    navigate('/auth');
+                    navigate('/register');
                     setIsMenuOpen(false);
                   }}
                   className="justify-start border-primary text-primary hover:bg-primary hover:text-white"
@@ -219,7 +219,7 @@ export const LandingPage = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
               size="lg" 
-              onClick={() => navigate('/auth')}
+              onClick={() => navigate('/register')}
               className="bg-primary hover:bg-primary/90 text-white px-8 py-3 text-lg"
             >
               Começar Agora
@@ -283,7 +283,7 @@ export const LandingPage = () => {
             <Button 
               size="lg" 
               variant="secondary"
-              onClick={() => navigate('/auth')}
+              onClick={() => navigate('/register')}
               className="bg-white text-primary hover:bg-gray-100 px-8 py-3 text-lg"
             >
               Cadastrar como Motorista

@@ -10,6 +10,7 @@ import { GuardianApp } from "./pages/GuardianApp";
 import NotFound from "./pages/NotFound";
 import { AuthFlow } from "./components/AuthFlow";
 import { LandingPage } from "./components/LandingPage";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 
 const queryClient = new QueryClient();
@@ -23,9 +24,19 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<LandingPage />} />
-            <Route path="/driver" element={<DriverApp />} />
-            <Route path="/guardian" element={<GuardianApp />} />
+            <Route path="/driver" element={
+              <ProtectedRoute>
+                <DriverApp />
+              </ProtectedRoute>
+            } />
+            <Route path="/guardian" element={
+              <ProtectedRoute>
+                <GuardianApp />
+              </ProtectedRoute>
+            } />
             <Route path="/auth" element={<AuthFlow />} />
+            <Route path="/login" element={<AuthFlow />} />
+            <Route path="/register" element={<AuthFlow />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

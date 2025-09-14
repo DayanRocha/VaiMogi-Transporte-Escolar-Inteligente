@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { LoginPage } from './LoginPage';
 import { RegisterPage } from './RegisterPage';
 import { WelcomeDialog } from './WelcomeDialog';
@@ -13,6 +13,16 @@ export const AuthFlow = () => {
   const [showWelcome, setShowWelcome] = useState(false);
   const [driverName, setDriverName] = useState<string>('');
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Detectar a rota atual e definir a view apropriada
+  useEffect(() => {
+    if (location.pathname === '/register') {
+      setCurrentView('register');
+    } else {
+      setCurrentView('login');
+    }
+  }, [location.pathname]);
 
   // Função de login
   const handleLogin = async (email: string, password: string) => {
@@ -197,7 +207,7 @@ export const AuthFlow = () => {
         <LoginPage
           onLogin={handleLogin}
           onGuardianLogin={handleGuardianLogin}
-          onNavigateToRegister={() => setCurrentView('register')}
+          onNavigateToRegister={() => navigate('/register')}
           onForgotPassword={handleForgotPassword}
         />
       </>
@@ -215,7 +225,7 @@ export const AuthFlow = () => {
       />
       <RegisterPage
         onRegister={handleRegister}
-        onNavigateToLogin={() => setCurrentView('login')}
+        onNavigateToLogin={() => navigate('/login')}
       />
       
       <WelcomeDialog
