@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GuardianMapView } from '@/components/GuardianMapView';
+import GuardianRealTimeMap from '@/components/GuardianRealTimeMap';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { GuardianHeader } from '@/components/GuardianHeader';
 import { GuardianMenuModal } from '@/components/GuardianMenuModal';
@@ -173,7 +173,7 @@ export const GuardianApp = () => {
       {/* Main Map View */}
       <div className="h-[calc(100vh-64px)] relative">
         <ErrorBoundary>
-          <GuardianMapView
+          <GuardianRealTimeMap
             driver={driver}
             van={van}
             students={students}

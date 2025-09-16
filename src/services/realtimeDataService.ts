@@ -272,11 +272,11 @@ class RealtimeDataService {
    */
   private async captureSchoolAddress(): Promise<SchoolAddress> {
     // Em produção, isso viria do banco de dados
-    // Por enquanto, usando dados simulados
+    // Por enquanto, usando dados simulados com localização correta em Mogi das Cruzes
     const schoolData = {
       schoolId: 'school-001',
-      schoolName: 'Escola Municipal São Paulo',
-      address: 'Rua das Flores, 123 - Centro, São Paulo - SP'
+      schoolName: 'Escola Municipal de Mogi das Cruzes',
+      address: 'Rua Coronel Souza Franco, 1000 - Centro, Mogi das Cruzes - SP'
     };
     
     try {
@@ -707,6 +707,58 @@ class RealtimeDataService {
     const activeRoute = routeTrackingService.getActiveRoute();
     if (activeRoute) {
       await this.captureInitialData(activeRoute);
+    }
+  }
+
+  /**
+   * Captura endereço de um estudante específico (método público)
+   */
+  async captureStudentAddress(studentId: string, address: string): Promise<{ coordinates: [number, number] } | null> {
+    try {
+      if (!address || address.trim().length === 0) {
+        console.warn('⚠️ Endereço vazio fornecido para estudante:', studentId);
+        return null;
+      }
+
+      console.log('🔍 Geocodificando endereço do estudante:', { studentId, address });
+      
+      const coords = await this.geocodeAddress(address);
+      if (coords) {
+        console.log('✅ Coordenadas obtidas para estudante:', { studentId, coordinates: coords });
+        return { coordinates: coords };
+      }
+      
+      console.warn('⚠️ Não foi possível geocodificar endereço do estudante:', { studentId, address });
+      return null;
+    } catch (error) {
+      console.error('❌ Erro ao capturar endereço do estudante:', { studentId, address, error });
+      return null;
+    }
+  }
+
+  /**
+   * Captura endereço de uma escola específica (método público)
+   */
+  async captureSchoolAddress(schoolId: string, address: string): Promise<{ coordinates: [number, number] } | null> {
+    try {
+      if (!address || address.trim().length === 0) {
+        console.warn('⚠️ Endereço vazio fornecido para escola:', schoolId);
+        return null;
+      }
+
+      console.log('🔍 Geocodificando endereço da escola:', { schoolId, address });
+      
+      const coords = await this.geocodeAddress(address);
+      if (coords) {
+        console.log('✅ Coordenadas obtidas para escola:', { schoolId, coordinates: coords });
+        return { coordinates: coords };
+      }
+      
+      console.warn('⚠️ Não foi possível geocodificar endereço da escola:', { schoolId, address });
+      return null;
+    } catch (error) {
+      console.error('❌ Erro ao capturar endereço da escola:', { schoolId, address, error });
+      return null;
     }
   }
 }

@@ -298,7 +298,24 @@ export const useGuardianData = () => {
   
   const [students, setStudents] = useState<Student[]>(() => getGuardianChildren(guardian.id));
   const [schools, setSchools] = useState(() => getSchools());
-  const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
+  const [activeTrip, setActiveTrip] = useState<Trip | null>(() => {
+    // Verificar se há uma rota ativa no routeTrackingService
+    const activeRoute = routeTrackingService.getActiveRoute();
+    if (activeRoute) {
+      // Converter ActiveRoute para Trip
+      return {
+        id: activeRoute.id,
+        driverId: activeRoute.driverId,
+        direction: activeRoute.direction,
+        startTime: activeRoute.startTime,
+        endTime: activeRoute.endTime,
+        isActive: activeRoute.isActive,
+        currentLocation: activeRoute.currentLocation,
+        studentPickups: activeRoute.studentPickups
+      };
+    }
+    return null;
+  });
   const [notifications, setNotifications] = useState<GuardianNotification[]>(() => {
     // Carregar notificações reais do localStorage
     const storedNotifications = notificationService.getStoredNotifications();
@@ -314,10 +331,25 @@ export const useGuardianData = () => {
       if (!newDriver) {
         console.log('Debug: Motivo driver não encontrado: Nenhum dado no localStorage ou sem match para guardian ' + guardian.id);
       }
+      // Verificar e atualizar activeTrip baseado na rota ativa
       const activeRoute = routeTrackingService.getActiveRoute();
       console.log('Debug: Rota ativa detectada no guardian hook:', activeRoute ? 'SIM' : 'NÃO');
       if (activeRoute) {
         console.log('Debug: Route details in guardian:', { isActive: activeRoute.isActive, driverName: activeRoute.driverName });
+        // Converter ActiveRoute para Trip e atualizar estado
+        const tripData: Trip = {
+          id: activeRoute.id,
+          driverId: activeRoute.driverId,
+          direction: activeRoute.direction,
+          startTime: activeRoute.startTime,
+          endTime: activeRoute.endTime,
+          isActive: activeRoute.isActive,
+          currentLocation: activeRoute.currentLocation,
+          studentPickups: activeRoute.studentPickups
+        };
+        setActiveTrip(tripData);
+      } else {
+        setActiveTrip(null);
       }
       const newVan = newDriver ? getVanData(newDriver.id) : null;
       const newStudents = getGuardianChildren(guardian.id);
@@ -346,6 +378,41 @@ export const useGuardianData = () => {
       clearInterval(interval);
     };
   }, [guardian.id]);
+
+  // Escutar mudanças na rota ativa do routeTrackingService
+  useEffect(() => {
+    const handleRouteChange = (activeRoute: any) => {
+      console.log('🔄 Mudança na rota detectada no guardian hook:', activeRoute ? 'ATIVA' : 'INATIVA');
+      if (activeRoute) {
+        const tripData: Trip = {
+          id: activeRoute.id,
+          driverId: activeRoute.driverId,
+          direction: activeRoute.direction,
+          startTime: activeRoute.startTime,
+          endTime: activeRoute.endTime,
+          isActive: activeRoute.isActive,
+          currentLocation: activeRoute.currentLocation,
+          studentPickups: activeRoute.studentPickups
+        };
+        setActiveTrip(tripData);
+        console.log('✅ ActiveTrip atualizado no guardian hook:', tripData.id);
+      } else {
+        setActiveTrip(null);
+        console.log('❌ ActiveTrip removido no guardian hook');
+      }
+    };
+
+    // Adicionar listener para mudanças na rota
+    routeTrackingService.addListener(handleRouteChange);
+
+    // Verificar rota ativa imediatamente
+    const currentRoute = routeTrackingService.getActiveRoute();
+    handleRouteChange(currentRoute);
+
+    return () => {
+      routeTrackingService.removeListener(handleRouteChange);
+    };
+  }, []);
 
   // Inicializar e escutar notificações reais do serviço (apenas tempo real para evitar duplicatas)
   useEffect(() => {
