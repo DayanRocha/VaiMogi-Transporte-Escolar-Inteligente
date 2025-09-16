@@ -19,6 +19,7 @@ import {
   X
 } from 'lucide-react';
 import SEOHead from './SEOHead';
+import { VideoPlayer } from './VideoPlayer';
 
 export const LandingPage = () => {
   const navigate = useNavigate();
@@ -233,6 +234,45 @@ export const LandingPage = () => {
             >
               <Eye className="w-5 h-5 mr-2" />
               Acompanhar Transporte
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Video Demo Section */}
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              Veja o VaiMogi em Ação
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Descubra como nossa plataforma facilita o dia a dia do transporte escolar
+            </p>
+          </div>
+          
+          <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-white p-2">
+            <VideoPlayer
+               src="/videos/d8071030-4df3-4c91-bd24-528f67f35fff.mp4"
+               poster="/vai-mogi.png"
+               title="Demonstração do VaiMogi"
+               className="w-full"
+               autoPlay={true}
+               muted={true}
+               loop={true}
+               controls={true}
+               preload="auto"
+               onError={() => console.log('Erro ao carregar vídeo')}
+             />
+          </div>
+          
+          <div className="text-center mt-8">
+            <Button 
+              variant="outline"
+              onClick={() => navigate('/register')}
+              className="border-primary text-primary hover:bg-primary hover:text-white"
+            >
+              Experimente Gratuitamente
             </Button>
           </div>
         </div>
