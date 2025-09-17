@@ -207,13 +207,33 @@ export const LandingPage = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-            Transporte Escolar
-            <span className="text-primary block">Inteligente e Seguro</span>
+      <section className="relative py-20 overflow-hidden">
+        {/* Background Video */}
+        <div className="absolute inset-0 z-0">
+          <VideoPlayer
+            src="/videos/d8071030-4df3-4c91-bd24-528f67f35fff.mp4"
+            poster="/vai-mogi.png"
+            title="Demonstração do VaiMogi"
+            className="w-full h-full object-cover"
+            autoPlay={true}
+            muted={true}
+            loop={true}
+            controls={false}
+            preload="auto"
+            onError={() => console.log('Erro ao carregar vídeo')}
+          />
+        </div>
+        
+        {/* White Overlay for Text Readability */}
+        <div className="absolute inset-0 bg-white/40 z-10"></div>
+        
+        {/* Content */}
+        <div className="relative z-20 max-w-7xl mx-auto text-center px-4 sm:px-6 lg:px-8 mt-[110px]">
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-gray-900 mb-6 drop-shadow-2xl">
+            <span className="drop-shadow-lg">Transporte Escolar</span>
+            <span className="text-primary block drop-shadow-lg">Inteligente e Seguro</span>
           </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+          <p className="text-2xl md:text-3xl text-gray-800 mb-8 max-w-4xl mx-auto font-semibold drop-shadow-lg">
             Conecte motoristas, responsáveis e escolas em uma plataforma completa 
             de gestão de transporte escolar com rastreamento em tempo real.
           </p>
@@ -221,7 +241,7 @@ export const LandingPage = () => {
             <Button 
               size="lg" 
               onClick={() => navigate('/register')}
-              className="bg-primary hover:bg-primary/90 text-white px-8 py-3 text-lg"
+              className="bg-primary hover:bg-primary/90 text-white px-8 py-3 text-lg shadow-2xl"
             >
               Começar Agora
               <ArrowRight className="w-5 h-5 ml-2" />
@@ -230,49 +250,10 @@ export const LandingPage = () => {
               size="lg" 
               variant="outline"
               onClick={() => setShowGuardianDialog(true)}
-              className="border-primary text-primary hover:bg-primary hover:text-white px-8 py-3 text-lg"
+              className="border-primary text-primary hover:bg-primary hover:text-white px-8 py-3 text-lg shadow-2xl bg-white/90"
             >
               <Eye className="w-5 h-5 mr-2" />
               Acompanhar Transporte
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* Video Demo Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Veja o VaiMogi em Ação
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Descubra como nossa plataforma facilita o dia a dia do transporte escolar
-            </p>
-          </div>
-          
-          <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-white p-2">
-            <VideoPlayer
-               src="/videos/d8071030-4df3-4c91-bd24-528f67f35fff.mp4"
-               poster="/vai-mogi.png"
-               title="Demonstração do VaiMogi"
-               className="w-full"
-               autoPlay={true}
-               muted={true}
-               loop={true}
-               controls={true}
-               preload="auto"
-               onError={() => console.log('Erro ao carregar vídeo')}
-             />
-          </div>
-          
-          <div className="text-center mt-8">
-            <Button 
-              variant="outline"
-              onClick={() => navigate('/register')}
-              className="border-primary text-primary hover:bg-primary hover:text-white"
-            >
-              Experimente Gratuitamente
             </Button>
           </div>
         </div>
