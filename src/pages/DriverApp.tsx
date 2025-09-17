@@ -87,7 +87,7 @@ export default function DriverApp() {
   const addToNavigationStack = (screen: string) => {
     setNavigationStack(prev => [...prev, screen]);
     // Add to browser history
-    window.history.pushState({ screen }, '', '/');
+    window.history.pushState({ screen }, '', '/driver');
   };
 
   const handleBackNavigation = () => {

@@ -1,62 +1,47 @@
-import { ReactNode, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
+import { ReactNode } from 'react';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requireAuth?: boolean;
 }
 
-export const ProtectedRoute = ({ children, requireAuth = true }: ProtectedRouteProps) => {
-  const navigate = useNavigate();
-  const [isChecking, setIsChecking] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  useEffect(() => {
-    const checkAuthentication = () => {
-      if (!requireAuth) {
-        setIsAuthenticated(true);
-        setIsChecking(false);
-        return;
-      }
-
-      // Verificar se há dados de autenticação salvos
-      const hasLoggedInBefore = localStorage.getItem('hasLoggedInBefore');
-      const driverData = localStorage.getItem('driver');
-      const guardianData = localStorage.getItem('currentGuardian');
-      const guardianLoggedIn = localStorage.getItem('guardianLoggedIn');
-      
-      // Se o usuário já fez login antes OU há dados do motorista/responsável salvos, considerar autenticado
-      if (hasLoggedInBefore === 'true' || driverData || guardianData || guardianLoggedIn === 'true') {
-        setIsAuthenticated(true);
-      } else {
-        setIsAuthenticated(false);
-        // Redirecionar para login apenas se não estiver autenticado
-        navigate('/login', { replace: true });
-      }
-      
-      setIsChecking(false);
-    };
-
-    checkAuthentication();
-  }, [navigate, requireAuth]);
-
-  // Mostrar loading enquanto verifica autenticação
-  if (isChecking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Verificando autenticação...</p>
-        </div>
-      </div>
-    );
+export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
+  const location = useLocation();
+  const currentPath = location.pathname;
+  
+  // Verificar se há dados de autenticação no localStorage
+  const hasLoggedInBefore = localStorage.getItem('hasLoggedInBefore');
+  const driverData = localStorage.getItem('driverData');
+  const guardianData = localStorage.getItem('guardianData');
+  const guardianLoggedIn = localStorage.getItem('guardianLoggedIn');
+  
+  // Logs de debug para investigar o problema
+  console.log('🔍 ProtectedRoute Debug:', {
+    hasLoggedInBefore,
+    driverData: driverData ? JSON.parse(driverData) : null,
+    guardianData: guardianData ? JSON.parse(guardianData) : null,
+    guardianLoggedIn,
+    currentPath
+  });
+  
+  // Verificar se o usuário está autenticado
+  let isAuthenticated = false;
+  
+  if (currentPath === '/driver') {
+    // Para rota do motorista, verificar se há dados do motorista
+    isAuthenticated = !!(hasLoggedInBefore && driverData);
+  } else if (currentPath === '/guardian') {
+    // Para rota do responsável, verificar se há dados do responsável
+    isAuthenticated = !!(guardianLoggedIn === 'true' && guardianData);
   }
-
-  // Se não está autenticado, não renderizar nada (já redirecionou)
+  
+  console.log('🔐 Autenticação:', { isAuthenticated, currentPath });
+  
   if (!isAuthenticated) {
-    return null;
+    console.log('❌ Usuário não autenticado, redirecionando para /');
+    return <Navigate to="/" replace />;
   }
-
-  // Se está autenticado, renderizar o componente filho
+  
+  console.log('✅ Usuário autenticado, renderizando componente');
   return <>{children}</>;
 };

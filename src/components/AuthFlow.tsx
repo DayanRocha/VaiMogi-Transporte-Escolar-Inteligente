@@ -29,23 +29,52 @@ export const AuthFlow = () => {
     setIsLoading(true);
     try {
       // Aqui você implementaria a lógica de autenticação
-      console.log('Login attempt:', { email, password });
+      console.log('🚀 Login attempt:', { email, password });
       
       // Simular chamada de API
       await new Promise(resolve => setTimeout(resolve, 2000));
       
+      // Criar dados do motorista
+      const driverData = {
+        id: Date.now().toString(),
+        name: email.split('@')[0], // Use parte do email como nome temporário
+        email,
+        phone: '',
+        address: '',
+        photo: '/placeholder.svg'
+      };
+      
+      console.log('💾 Salvando dados do motorista:', driverData);
+      
+      // Salvar dados do motorista no localStorage
+      localStorage.setItem('driverData', JSON.stringify(driverData));
+      localStorage.setItem('hasLoggedInBefore', 'true');
+      
+      // Verificar se os dados foram salvos corretamente
+      const savedDriverData = localStorage.getItem('driverData');
+      const savedHasLoggedIn = localStorage.getItem('hasLoggedInBefore');
+      
+      console.log('✅ Verificação pós-salvamento:', {
+        driverDataSaved: !!savedDriverData,
+        hasLoggedInSaved: !!savedHasLoggedIn,
+        savedDriverData: savedDriverData ? JSON.parse(savedDriverData) : null,
+        savedHasLoggedIn
+      });
+      
       // Verificar se é o primeiro login (simulado)
-      const isFirstLogin = !localStorage.getItem('hasLoggedInBefore');
+      const isFirstLogin = !localStorage.getItem('firstLoginCompleted');
       
       if (isFirstLogin) {
-        localStorage.setItem('hasLoggedInBefore', 'true');
-        setDriverName(email.split('@')[0]); // Use parte do email como nome temporário
+        console.log('🎉 Primeiro login detectado, mostrando boas-vindas');
+        localStorage.setItem('firstLoginCompleted', 'true');
+        setDriverName(email.split('@')[0]);
         setShowWelcome(true);
       } else {
+        console.log('🔄 Login recorrente, navegando diretamente');
         navigate('/driver');
       }
     } catch (error) {
-      console.error('Erro no login:', error);
+      console.error('❌ Erro no login:', error);
       alert('Erro ao fazer login. Verifique suas credenciais.');
     } finally {
       setIsLoading(false);

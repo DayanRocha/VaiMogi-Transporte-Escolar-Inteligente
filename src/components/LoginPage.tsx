@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,7 @@ interface LoginPageProps {
 }
 
 export const LoginPage = ({ onLogin, onGuardianLogin, onNavigateToRegister, onForgotPassword }: LoginPageProps) => {
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,6 +23,13 @@ export const LoginPage = ({ onLogin, onGuardianLogin, onNavigateToRegister, onFo
   const [showGuardianCodeDialog, setShowGuardianCodeDialog] = useState(false);
   const [guardianCode, setGuardianCode] = useState('');
   const [guardianCodeError, setGuardianCodeError] = useState('');
+
+  // Detectar se deve abrir o diálogo de responsável automaticamente
+  useEffect(() => {
+    if (location.state?.openGuardianDialog) {
+      setShowGuardianCodeDialog(true);
+    }
+  }, [location.state]);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};

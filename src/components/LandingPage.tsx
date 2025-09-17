@@ -1,9 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { 
   MapPin, 
   Shield, 
@@ -23,59 +20,10 @@ import { VideoPlayer } from './VideoPlayer';
 
 export const LandingPage = () => {
   const navigate = useNavigate();
-  const [showGuardianDialog, setShowGuardianDialog] = useState(false);
-  const [guardianCode, setGuardianCode] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [guardianCodeError, setGuardianCodeError] = useState('');
 
-  const handleGuardianAccess = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!guardianCode.trim()) {
-      setGuardianCodeError('Código é obrigatório');
-      return;
-    }
 
-    if (guardianCode.length < 4) {
-      setGuardianCodeError('Código deve ter pelo menos 4 caracteres');
-      return;
-    }
 
-    setIsLoading(true);
-    try {
-      // Simular validação do código
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Buscar responsável pelo código
-      const savedGuardians = localStorage.getItem('guardians');
-      let guardians = [];
-      
-      if (savedGuardians) {
-        guardians = JSON.parse(savedGuardians);
-      }
-      
-      const guardian = guardians.find((g: any) => g.uniqueCode === guardianCode.trim());
-      
-      if (!guardian) {
-        setGuardianCodeError('Código não encontrado');
-        return;
-      }
-      
-      if (guardian.isActive === false) {
-        setGuardianCodeError('Acesso não autorizado');
-        return;
-      }
-      
-      // Salvar dados do responsável logado
-      localStorage.setItem('currentGuardian', JSON.stringify(guardian));
-      navigate('/guardian');
-    } catch (error) {
-      setGuardianCodeError('Erro ao validar código');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const features = [
     {
@@ -149,7 +97,7 @@ export const LandingPage = () => {
                 Cadastrar
               </Button>
               <Button 
-                onClick={() => setShowGuardianDialog(true)}
+                onClick={() => navigate('/login', { state: { openGuardianDialog: true } })}
                 className="bg-primary hover:bg-primary/90 text-white"
               >
                 <Key className="w-4 h-4 mr-2" />
@@ -192,7 +140,7 @@ export const LandingPage = () => {
                 </Button>
                 <Button 
                   onClick={() => {
-                    setShowGuardianDialog(true);
+                    navigate('/login', { state: { openGuardianDialog: true } });
                     setIsMenuOpen(false);
                   }}
                   className="justify-start bg-primary hover:bg-primary/90 text-white"
@@ -240,7 +188,7 @@ export const LandingPage = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
               size="lg" 
-              onClick={() => navigate('/register')}
+              onClick={() => navigate('/login')}
               className="bg-primary hover:bg-primary/90 text-white px-8 py-3 text-lg shadow-2xl"
             >
               Começar Agora
@@ -249,7 +197,7 @@ export const LandingPage = () => {
             <Button 
               size="lg" 
               variant="outline"
-              onClick={() => setShowGuardianDialog(true)}
+              onClick={() => navigate('/login', { state: { openGuardianDialog: true } })}
               className="border-primary text-primary hover:bg-primary hover:text-white px-8 py-3 text-lg shadow-2xl bg-white/90"
             >
               <Eye className="w-5 h-5 mr-2" />
@@ -312,7 +260,7 @@ export const LandingPage = () => {
             <Button 
               size="lg" 
               variant="outline"
-              onClick={() => setShowGuardianDialog(true)}
+              onClick={() => navigate('/login', { state: { openGuardianDialog: true } })}
               className="border-2 border-white text-white bg-transparent hover:bg-white hover:text-primary px-8 py-3 text-lg font-semibold"
             >
               Sou Responsável
@@ -345,62 +293,7 @@ export const LandingPage = () => {
         </div>
       </footer>
 
-      {/* Guardian Access Dialog */}
-      <Dialog open={showGuardianDialog} onOpenChange={setShowGuardianDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Key className="w-5 h-5 text-primary" />
-              Acesso para Responsáveis
-            </DialogTitle>
-            <DialogDescription>
-              Digite o código único fornecido pelo motorista para acompanhar o transporte do seu filho.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleGuardianAccess} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="guardianCode">Código de Acesso</Label>
-              <Input
-                id="guardianCode"
-                type="text"
-                placeholder="Digite seu código único"
-                value={guardianCode}
-                onChange={(e) => {
-                  setGuardianCode(e.target.value);
-                  setGuardianCodeError('');
-                }}
-                className={guardianCodeError ? 'border-red-500' : ''}
-              />
-              {guardianCodeError && (
-                <p className="text-sm text-red-500">{guardianCodeError}</p>
-              )}
-            </div>
-            
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setShowGuardianDialog(false);
-                  setGuardianCode('');
-                  setGuardianCodeError('');
-                }}
-                className="flex-1"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 bg-primary hover:bg-primary/90"
-              >
-                {isLoading ? 'Verificando...' : 'Acessar'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 };

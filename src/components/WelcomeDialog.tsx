@@ -20,6 +20,15 @@ export const WelcomeDialog = ({ isOpen, onClose, driverName }: WelcomeDialogProp
 
   useEffect(() => {
     if (isOpen) {
+      console.log('🎊 WelcomeDialog aberto para:', driverName);
+      // Verificar dados no localStorage quando o dialog abre
+      const driverData = localStorage.getItem('driverData');
+      const hasLoggedIn = localStorage.getItem('hasLoggedInBefore');
+      console.log('📊 Dados no localStorage ao abrir WelcomeDialog:', {
+        driverData: driverData ? JSON.parse(driverData) : null,
+        hasLoggedIn
+      });
+      
       // Delay to show content after dialog opens
       const timer = setTimeout(() => {
         setShowContent(true);
@@ -75,24 +84,27 @@ export const WelcomeDialog = ({ isOpen, onClose, driverName }: WelcomeDialogProp
             🎉 Bem-vindo ao VaiMogi!
           </DialogTitle>
           
-          <DialogDescription className="text-lg text-gray-600 space-y-2">
-            <p>
-              Olá {driverName ? driverName : 'motorista'}! 
-            </p>
-            <p>
-              Seja bem-vindo ao aplicativo que vai transformar 
-              sua experiência como motorista escolar.
-            </p>
-            <p className="text-sm">
-              Agora você pode gerenciar suas rotas, alunos e 
-              comunicação com os responsáveis de forma simples e eficiente.
-            </p>
+          <DialogDescription className="text-lg text-gray-600">
+            Olá {driverName ? driverName : 'motorista'}! Seja bem-vindo ao aplicativo que vai transformar sua experiência como motorista escolar.
           </DialogDescription>
+          <div className="text-sm text-gray-500 mt-2">
+            Agora você pode gerenciar suas rotas, alunos e comunicação com os responsáveis de forma simples e eficiente.
+          </div>
         </DialogHeader>
 
         <div className="flex flex-col gap-3 mt-6">
           <Button
-            onClick={onClose}
+            onClick={() => {
+              console.log('🚀 Fechando WelcomeDialog e navegando para /driver');
+              // Verificar dados antes de fechar
+              const driverData = localStorage.getItem('driverData');
+              const hasLoggedIn = localStorage.getItem('hasLoggedInBefore');
+              console.log('📊 Dados no localStorage ao fechar WelcomeDialog:', {
+                driverData: driverData ? JSON.parse(driverData) : null,
+                hasLoggedIn
+              });
+              onClose();
+            }}
             className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02]"
           >
             Vamos começar! 🚐

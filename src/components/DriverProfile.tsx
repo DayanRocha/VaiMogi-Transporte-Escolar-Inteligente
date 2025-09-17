@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Camera, Edit, Save, X, ArrowLeft, LogOut } from 'lucide-react';
+import { Camera, Edit, Save, X, ArrowLeft, LogOut, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Driver } from '@/types/driver';
 
 interface DriverProfileProps {
@@ -15,10 +16,12 @@ interface DriverProfileProps {
 export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProfileProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(driver);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
   const handleSave = () => {
     onUpdate(formData);
     setIsEditing(false);
+    setShowSuccessDialog(true);
   };
 
   const handleCancel = () => {
@@ -35,6 +38,7 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
         setFormData(prev => ({ ...prev, photo: photoUrl }));
         if (!isEditing) {
           onUpdate({ photo: photoUrl });
+          setShowSuccessDialog(true);
         }
       };
       reader.readAsDataURL(file);
@@ -167,6 +171,29 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
           )}
         </div>
       </div>
+
+      {/* Diálogo de Confirmação */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="w-5 h-5" />
+              Sucesso!
+            </DialogTitle>
+            <DialogDescription>
+              Alterações foram salvas com sucesso!
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end mt-4">
+            <Button 
+              onClick={() => setShowSuccessDialog(false)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              OK
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

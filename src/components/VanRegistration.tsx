@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Camera, Save, Truck, ArrowLeft, LogOut } from 'lucide-react';
+import { Camera, Save, Truck, ArrowLeft, LogOut, CheckCircle, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Van } from '@/types/driver';
 
 interface VanRegistrationProps {
@@ -23,9 +24,20 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
     photo: '',
     drivingPermitDocument: ''
   });
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [isDataSaved, setIsDataSaved] = useState(false);
+  const [isEditingEnabled, setIsEditingEnabled] = useState(true);
 
   const handleSave = () => {
     onUpdate(formData);
+    setIsDataSaved(true);
+    setIsEditingEnabled(false);
+    setShowSuccessDialog(true);
+  };
+
+  const handleEnableEditing = () => {
+    setIsEditingEnabled(true);
+    setIsDataSaved(false);
   };
 
   const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,13 +111,18 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
                 </div>
               )}
             </div>
-            <label className="absolute bottom-2 right-2 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors">
+            <label className={`absolute bottom-2 right-2 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+              isEditingEnabled 
+                ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer' 
+                : 'bg-gray-400 cursor-not-allowed'
+            }`}>
               <Camera className="w-5 h-5 text-white" />
               <input
                 type="file"
                 accept="image/*"
                 onChange={handlePhotoUpload}
                 className="hidden"
+                disabled={!isEditingEnabled}
               />
             </label>
           </div>
@@ -119,6 +136,8 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
               value={formData.model || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, model: e.target.value }))}
               placeholder="Ex: Sprinter 415"
+              disabled={!isEditingEnabled}
+              className={!isEditingEnabled ? "bg-gray-100" : ""}
             />
           </div>
 
@@ -129,6 +148,8 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
               value={formData.plate || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, plate: e.target.value }))}
               placeholder="Ex: ABC-1234"
+              disabled={!isEditingEnabled}
+              className={!isEditingEnabled ? "bg-gray-100" : ""}
             />
           </div>
 
@@ -140,6 +161,8 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
               value={formData.capacity || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, capacity: parseInt(e.target.value) || 0 }))}
               placeholder="Ex: 20"
+              disabled={!isEditingEnabled}
+              className={!isEditingEnabled ? "bg-gray-100" : ""}
             />
           </div>
 
@@ -150,6 +173,8 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
               value={formData.observations || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, observations: e.target.value }))}
               placeholder="Observações adicionais"
+              disabled={!isEditingEnabled}
+              className={!isEditingEnabled ? "bg-gray-100" : ""}
             />
           </div>
 
@@ -181,27 +206,65 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
                   </div>
                 )}
               </div>
-              <label className="absolute bottom-2 right-2 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-green-700 transition-colors">
+              <label className={`absolute bottom-2 right-2 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                isEditingEnabled 
+                  ? 'bg-green-600 hover:bg-green-700 cursor-pointer' 
+                  : 'bg-gray-400 cursor-not-allowed'
+              }`}>
                 <Camera className="w-4 h-4 text-white" />
                 <input
                   type="file"
                   accept="image/jpeg,application/pdf"
                   onChange={handleDocumentUpload}
                   className="hidden"
+                  disabled={!isEditingEnabled}
                 />
               </label>
             </div>
           </div>
         </div>
 
-        <Button
-          onClick={handleSave}
-          className="w-full mt-6 bg-blue-600 hover:bg-blue-700"
-        >
-          <Save className="w-4 h-4 mr-2" />
-          Salvar Van
-        </Button>
+        {isEditingEnabled ? (
+          <Button
+            onClick={handleSave}
+            className="w-full mt-6 bg-blue-600 hover:bg-blue-700"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            Salvar Van
+          </Button>
+        ) : (
+          <Button
+            onClick={handleEnableEditing}
+            className="w-full mt-6 bg-orange-600 hover:bg-orange-700"
+          >
+            <Edit className="w-4 h-4 mr-2" />
+             Editar Van
+          </Button>
+        )}
       </div>
+
+      {/* Diálogo de Confirmação */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="w-5 h-5" />
+              Sucesso!
+            </DialogTitle>
+            <DialogDescription>
+              Os dados da van foram salvos com sucesso!
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end mt-4">
+            <Button 
+              onClick={() => setShowSuccessDialog(false)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              OK
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
