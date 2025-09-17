@@ -178,6 +178,7 @@ export const GuardianApp = () => {
             van={van}
             students={students}
             activeTrip={activeTrip}
+            hideOverlays={true}
           />
         </ErrorBoundary>
       </div>

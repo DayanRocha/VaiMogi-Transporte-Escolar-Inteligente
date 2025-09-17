@@ -457,7 +457,7 @@ export const useDriverData = () => {
             console.log(`📊 ${student.name}: configuração da rota=${routeConfig.direction} → direction=${direction}`);
           } else {
             // Sem configuração específica: inferir da preferência do aluno
-            direction = student.dropoffLocation === 'home' ? 'to_home' : 'to_school';
+            direction = student.dropoffLocation === 'home' ? 'to_school' : 'to_home';
             console.log(`📊 ${student.name}: direction inferido de dropoffLocation=${student.dropoffLocation} → direction=${direction}`);
           }
           

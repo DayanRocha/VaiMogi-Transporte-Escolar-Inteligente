@@ -733,39 +733,23 @@ export const ActiveTrip = ({ trip, students, schools, driver, onUpdateStudentSta
   
   // Função para verificar se a rota está completa de forma robusta
   const checkRouteCompletion = () => {
-    // Verificação 1: Trip students - APENAS estudantes que foram DESEMBARCADOS
-    const tripCompleted = trip.students.every(s => s.status === 'disembarked');
+    // Verificação simplificada: apenas verificar se todos os estudantes foram desembarcados
+    const isRouteComplete = trip.students.length > 0 && trip.students.every(s => s.status === 'disembarked');
     
-    // Verificação 2: Route tracking service
-    const activeRoute = routeTrackingService.getActiveRoute();
-    const routeCompleted = activeRoute ? 
-      activeRoute.studentPickups.every(s => s.status === 'dropped_off') : 
-      false;
-    
-    // Verificação 3: Contagem manual (checagem adicional) - APENAS desembarcados
     const disembarkedCount = trip.students.filter(s => s.status === 'disembarked').length;
     const totalCount = trip.students.length;
-    const countCompleted = disembarkedCount === totalCount && totalCount > 0;
     
     console.log(`🔍 Verificação de conclusão da rota:`, {
-      tripCompleted,
-      routeCompleted,
-      countCompleted,
+      isRouteComplete,
       disembarkedCount,
       totalCount,
       studentStatuses: trip.students.map(s => ({ id: s.studentId, status: s.status }))
     });
     
-    return {
-      tripCompleted,
-      routeCompleted,
-      countCompleted,
-      isComplete: tripCompleted && routeCompleted && countCompleted
-    };
+    return isRouteComplete;
   };
   
-  const routeCompletion = checkRouteCompletion();
-  const isRouteComplete = routeCompletion.isComplete;
+  const isRouteComplete = checkRouteCompletion();
   
 
   

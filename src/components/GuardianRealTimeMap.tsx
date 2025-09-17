@@ -7,7 +7,9 @@ import { useRouteTracking } from '../hooks/useRouteTracking';
 import { useGuardianData } from '@/hooks/useGuardianData';
 import { useGeocoding } from '@/hooks/useGeocoding';
 import { useAutomaticRouteTracing } from '@/hooks/useAutomaticRouteTracing';
-import { AlertCircle, Navigation, Clock, MapPin } from 'lucide-react';
+import { MapboxDirectionsService } from '../services/mapboxDirectionsService';
+import { RealTimeLocationService } from '../services/realTimeLocationService';
+import { AlertCircle, Navigation, Clock, MapPin, Route } from 'lucide-react';
 
 // Configuração do token do Mapbox
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZGF5YW5hcmF1am8iLCJhIjoiY2x6cGNhZGNzMGNhZzJqcGNqZGNqZGNqZCJ9.example';
@@ -30,21 +32,63 @@ const useDebounce = (value: any, delay: number) => {
   return debouncedValue;
 };
 
-// Adicionar estilos CSS para animações
+// Adicionar estilos CSS para animações e marcadores
 const addMapStyles = () => {
   if (typeof document !== 'undefined' && !document.getElementById('map-animations')) {
     const style = document.createElement('style');
     style.id = 'map-animations';
     style.textContent = `
       @keyframes pulse {
-        0%, 100% {
-          opacity: 1;
-          transform: scale(1);
+        0% {
+          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
         }
-        50% {
-          opacity: 0.7;
-          transform: scale(1.1);
+        70% {
+          box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
         }
+        100% {
+          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+        }
+      }
+      
+      @keyframes bounce {
+        0%, 20%, 50%, 80%, 100% {
+          transform: translateY(0);
+        }
+        40% {
+          transform: translateY(-10px);
+        }
+        60% {
+          transform: translateY(-5px);
+        }
+      }
+      
+      .driver-marker {
+        animation: pulse 2s infinite;
+        transition: all 0.3s ease;
+      }
+      
+      .driver-marker:hover {
+        transform: scale(1.1);
+      }
+      
+      .student-marker {
+        transition: all 0.3s ease;
+      }
+      
+      .student-marker:hover {
+        animation: bounce 0.6s;
+      }
+      
+      .school-marker {
+        transition: all 0.3s ease;
+      }
+      
+      .school-marker:hover {
+        transform: scale(1.1);
+      }
+      
+      .route-waypoint {
+        animation: pulse 3s infinite;
       }
       
       .marker-loading {
@@ -63,6 +107,7 @@ interface GuardianRealTimeMapProps {
   van: Van;
   students: Student[];
   activeTrip: Trip | null;
+  hideOverlays?: boolean; // Nova prop para ocultar overlays no painel do motorista
 }
 
 interface DriverLocation {
@@ -85,6 +130,19 @@ interface StudentPickup {
   estimatedTime?: string;
 }
 
+interface OptimizedRoute {
+  waypoints: Array<{
+    latitude: number;
+    longitude: number;
+    name: string;
+    type: 'student' | 'school';
+  }>;
+  geometry: any;
+  distance: number;
+  duration: number;
+  traffic: boolean;
+}
+
 // Função debounce para otimizar atualizações
 function debounce<T extends (...args: any[]) => any>(
   func: T,
@@ -101,7 +159,8 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
   driver,
   van,
   students,
-  activeTrip
+  activeTrip,
+  hideOverlays = false
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -111,6 +170,15 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
   const driverMarker = useRef<mapboxgl.Marker | null>(null);
   const studentMarkers = useRef<mapboxgl.Marker[]>([]);
   const schoolMarkers = useRef<mapboxgl.Marker[]>([]);
+  
+  // Estados para roteamento otimizado
+  const [optimizedRoute, setOptimizedRoute] = useState<OptimizedRoute | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  
+  // Instâncias dos serviços
+  const directionsService = useMemo(() => new MapboxDirectionsService(), []);
+  const locationService = useMemo(() => new RealTimeLocationService(), []);
   
   // Hooks para dados em tempo real
   const { driverLocation, isCapturing } = useRealtimeData(driver.id);
@@ -145,11 +213,18 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
+    // Usar localização do motorista se disponível, senão usar São Paulo como padrão
+    const initialCenter = driverLocation 
+      ? [driverLocation.longitude, driverLocation.latitude] 
+      : [-46.6333, -23.5505]; // São Paulo como centro padrão
+    
+    const initialZoom = driverLocation ? 15 : 12; // Zoom maior se tiver localização do motorista
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [-46.6333, -23.5505], // São Paulo como centro padrão
-      zoom: 12,
+      center: initialCenter,
+      zoom: initialZoom,
       attributionControl: false
     });
 
@@ -173,9 +248,55 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
         map.current = null;
       }
     };
-  }, []);
+  }, [driverLocation]); // Reinicializar quando a localização do motorista estiver disponível
 
-  // Atualizar localização do motorista com debounce
+  // Centralizar mapa na localização do motorista quando disponível pela primeira vez
+  useEffect(() => {
+    if (!map.current || !isMapLoaded || !driverLocation) return;
+    
+    // Centralizar o mapa na localização atual do motorista com animação suave
+    map.current.flyTo({
+      center: [driverLocation.longitude, driverLocation.latitude],
+      zoom: 15,
+      duration: 2000, // Animação de 2 segundos
+      essential: true // Esta animação é considerada essencial
+    });
+
+    console.log('🎯 Mapa centralizado na localização atual do motorista:', {
+      lat: driverLocation.latitude,
+      lng: driverLocation.longitude,
+      timestamp: driverLocation.timestamp
+    });
+  }, [driverLocation, isMapLoaded]); // Executar apenas quando a localização estiver disponível
+
+  // Integrar serviço de localização em tempo real
+  useEffect(() => {
+    if (!activeTrip || !debouncedDriverLocation) return;
+
+    // Configurar rastreamento em tempo real
+    locationService.startTracking({
+      driverId: activeTrip.driverId,
+      routeId: activeTrip.id,
+      students: activeTrip.students || [],
+      school: activeTrip.route?.school || null
+    });
+
+    // Atualizar localização do motorista no serviço
+    locationService.updateDriverLocation({
+      driverId: activeTrip.driverId,
+      latitude: debouncedDriverLocation.latitude,
+      longitude: debouncedDriverLocation.longitude,
+      timestamp: debouncedDriverLocation.timestamp,
+      speed: debouncedDriverLocation.speed,
+      heading: debouncedDriverLocation.heading
+    });
+
+    return () => {
+      locationService.stopTracking();
+    };
+  }, [activeTrip, debouncedDriverLocation, locationService]);
+
+  // Atualizar localização do motorista no mapa com debounce
   useEffect(() => {
     if (!map.current || !isMapLoaded || !debouncedDriverLocation) return;
     
@@ -185,31 +306,103 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
     if (!driverMarker.current) {
       const el = document.createElement('div');
       el.className = 'driver-marker';
-      el.style.cssText = 'width: 30px; height: 30px; background: #3b82f6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3); cursor: pointer;';
+      el.style.cssText = 'width: 30px; height: 30px; background: linear-gradient(45deg, #ef4444, #dc2626); border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.3); cursor: pointer; position: relative; animation: pulse 2s infinite;';
+
+      // Adicionar ícone do motorista
+      el.innerHTML = `
+        <div style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          color: white;
+          font-size: 12px;
+          font-weight: bold;
+        ">🚐</div>
+      `;
+
+      // Adicionar informações de velocidade se disponível
+      const speedInfo = driverLocation.speed ? `
+        <div style="
+          position: absolute;
+          top: -25px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(0,0,0,0.8);
+          color: white;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 10px;
+          white-space: nowrap;
+        ">${driverLocation.speed.toFixed(0)} km/h</div>
+      ` : '';
+      
+      if (speedInfo) {
+        el.innerHTML += speedInfo;
+      }
 
       driverMarker.current = new mapboxgl.Marker(el)
         .setLngLat([driverLocation.longitude, driverLocation.latitude])
         .setPopup(
           new mapboxgl.Popup({ offset: 25 })
             .setHTML(`
-              <div class="p-2">
-                <h3 class="font-semibold">${driver.name}</h3>
-                <p class="text-sm text-gray-600">Van: ${van.licensePlate}</p>
-                <p class="text-xs text-gray-500">Última atualização: ${formatTime(driverLocation.timestamp)}</p>
+              <div class="p-3">
+                <h3 class="font-semibold text-gray-800 mb-2">Motorista em Movimento</h3>
+                <div class="space-y-1 text-sm">
+                  <p class="text-gray-600">Última atualização: ${formatTime(driverLocation.timestamp)}</p>
+                  ${driverLocation.speed ? `<p class="text-gray-600">Velocidade: ${driverLocation.speed.toFixed(1)} km/h</p>` : ''}
+                  ${driverLocation.heading ? `<p class="text-gray-600">Direção: ${driverLocation.heading.toFixed(0)}°</p>` : ''}
+                  <div class="pt-2 border-t border-gray-200">
+                    <div class="flex items-center gap-1">
+                      <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <span class="text-xs text-green-600">Rastreamento ativo</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             `)
         )
         .addTo(map.current);
     } else {
       driverMarker.current.setLngLat([driverLocation.longitude, driverLocation.latitude]);
+      
+      // Atualizar popup com informações mais recentes
+      const popup = driverMarker.current.getPopup();
+      if (popup) {
+        popup.setHTML(`
+          <div class="p-3">
+            <h3 class="font-semibold text-gray-800 mb-2">Motorista em Movimento</h3>
+            <div class="space-y-1 text-sm">
+              <p class="text-gray-600">Última atualização: ${formatTime(driverLocation.timestamp)}</p>
+              ${driverLocation.speed ? `<p class="text-gray-600">Velocidade: ${driverLocation.speed.toFixed(1)} km/h</p>` : ''}
+              ${driverLocation.heading ? `<p class="text-gray-600">Direção: ${driverLocation.heading.toFixed(0)}°</p>` : ''}
+              <div class="pt-2 border-t border-gray-200">
+                <div class="flex items-center gap-1">
+                  <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span class="text-xs text-green-600">Rastreamento ativo</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `);
+      }
     }
 
-    // Centralizar mapa na localização do motorista
-    map.current.easeTo({
-      center: [driverLocation.longitude, driverLocation.latitude],
-      duration: 1000
+    // Suavemente seguir a localização do motorista (apenas se não for a primeira vez)
+    if (driverMarker.current) {
+      map.current.easeTo({
+        center: [driverLocation.longitude, driverLocation.latitude],
+        duration: 1000
+      });
+    }
+
+    console.log('🚐 Localização do motorista atualizada:', {
+      lat: driverLocation.latitude,
+      lng: driverLocation.longitude,
+      timestamp: driverLocation.timestamp,
+      speed: driverLocation.speed
     });
-  }, [driverLocation, isMapLoaded, driver.name, van.licensePlate, formatTime]);
+  }, [debouncedDriverLocation, isMapLoaded, driver.name, van.licensePlate, formatTime]);
 
   // Adicionar ícones personalizados do Mapbox
   useEffect(() => {
@@ -563,32 +756,125 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
     processSchoolsData();
    }, [debouncedSchools, isMapLoaded, geocodeSchoolAddress]);
 
-  // Desenhar rota otimizada
+  // Calcular rota otimizada quando dados mudarem
   useEffect(() => {
-    if (!map.current || !isMapLoaded || !activeRoute) return;
+    const calculateOptimizedRoute = async () => {
+      if (!activeRoute || !driverLocation || isOptimizing) return;
+
+      setIsOptimizing(true);
+      setRouteError(null);
+
+      try {
+        // Preparar waypoints: motorista -> estudantes -> escola
+        const waypoints = [];
+        
+        // Ponto de partida: localização atual do motorista
+        waypoints.push({
+          latitude: driverLocation.latitude,
+          longitude: driverLocation.longitude,
+          name: 'Motorista',
+          type: 'driver' as const
+        });
+
+        // Adicionar estudantes pendentes
+        const pendingStudents = activeRoute.studentPickups
+          .filter(pickup => pickup.status === 'pending' && pickup.lat && pickup.lng)
+          .map(pickup => ({
+            latitude: pickup.lat!,
+            longitude: pickup.lng!,
+            name: pickup.studentName,
+            type: 'student' as const
+          }));
+        
+        waypoints.push(...pendingStudents);
+
+        // Adicionar escola como destino final
+        if (activeRoute.school && activeRoute.school.latitude && activeRoute.school.longitude) {
+          waypoints.push({
+            latitude: activeRoute.school.latitude,
+            longitude: activeRoute.school.longitude,
+            name: activeRoute.school.name,
+            type: 'school' as const
+          });
+        }
+
+        if (waypoints.length < 2) {
+          console.log('🚫 Waypoints insuficientes para calcular rota');
+          return;
+        }
+
+        // Calcular rota otimizada
+        const routeResult = await directionsService.calculateOptimizedRoute(
+          waypoints,
+          {
+            considerTraffic: true,
+            avoidTolls: false,
+            vehicleType: 'van'
+          }
+        );
+
+        if (routeResult.success && routeResult.route) {
+          setOptimizedRoute({
+            waypoints,
+            geometry: routeResult.route.geometry,
+            distance: routeResult.route.distance,
+            duration: routeResult.route.duration,
+            traffic: true
+          });
+          
+          console.log('🗺️ Rota otimizada calculada:', {
+            waypoints: waypoints.length,
+            distancia: `${(routeResult.route.distance / 1000).toFixed(2)} km`,
+            duracao: `${Math.floor(routeResult.route.duration / 60)}min`
+          });
+        } else {
+          setRouteError(routeResult.error || 'Erro ao calcular rota');
+        }
+      } catch (error) {
+        console.error('❌ Erro ao calcular rota otimizada:', error);
+        setRouteError('Erro interno ao calcular rota');
+      } finally {
+        setIsOptimizing(false);
+      }
+    };
+
+    calculateOptimizedRoute();
+  }, [activeRoute, driverLocation, directionsService, isOptimizing]);
+
+  // Desenhar rota otimizada no mapa
+  useEffect(() => {
+    if (!map.current || !isMapLoaded || !optimizedRoute) return;
 
     const routeId = 'optimized-route';
+    const waypointsId = 'route-waypoints';
     
     // Remover rota existente
-    if (map.current.getSource(routeId)) {
+    if (map.current.getLayer(routeId)) {
       map.current.removeLayer(routeId);
+    }
+    if (map.current.getSource(routeId)) {
       map.current.removeSource(routeId);
     }
+    
+    if (map.current.getLayer(waypointsId)) {
+      map.current.removeLayer(waypointsId);
+    }
+    if (map.current.getSource(waypointsId)) {
+      map.current.removeSource(waypointsId);
+    }
 
-    // Adicionar nova rota
+    // Adicionar rota otimizada
     map.current.addSource(routeId, {
       type: 'geojson',
       data: {
         type: 'Feature',
         properties: {
-          routeType: 'planned'
+          routeType: 'optimized',
+          distance: optimizedRoute.distance,
+          duration: optimizedRoute.duration,
+          traffic: optimizedRoute.traffic
         },
-        geometry: activeRoute.geometry || {
-        type: 'LineString',
-        coordinates: activeRoute.studentPickups
-          .filter(pickup => pickup.lat && pickup.lng)
-          .map(pickup => [pickup.lng, pickup.lat])
-      }
+        geometry: optimizedRoute.geometry
       }
     });
 
@@ -599,16 +885,72 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
       layout: {
         'line-join': 'round',
         'line-cap': 'round',
-        'visibility': tracedRoute ? 'none' : 'visible' // Ocultar rota planejada quando há rota traçada
+        'visibility': tracedRoute ? 'none' : 'visible'
       },
       paint: {
         'line-color': '#3b82f6',
-        'line-width': 4,
-        'line-opacity': 0.6,
-        'line-dasharray': [2, 2] // Linha tracejada para diferenciação
+        'line-width': 5,
+        'line-opacity': 0.8
       }
     });
-  }, [activeRoute, isMapLoaded, tracedRoute]);
+
+    // Adicionar waypoints como marcadores
+    const waypointsData = {
+      type: 'FeatureCollection' as const,
+      features: optimizedRoute.waypoints.map((waypoint, index) => ({
+        type: 'Feature' as const,
+        properties: {
+          name: waypoint.name,
+          type: waypoint.type,
+          order: index + 1
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [waypoint.longitude, waypoint.latitude]
+        }
+      }))
+    };
+
+    map.current.addSource(waypointsId, {
+      type: 'geojson',
+      data: waypointsData
+    });
+
+    map.current.addLayer({
+      id: waypointsId,
+      type: 'circle',
+      source: waypointsId,
+      paint: {
+        'circle-radius': [
+          'case',
+          ['==', ['get', 'type'], 'driver'], 8,
+          ['==', ['get', 'type'], 'school'], 10,
+          6
+        ],
+        'circle-color': [
+          'case',
+          ['==', ['get', 'type'], 'driver'], '#ef4444',
+          ['==', ['get', 'type'], 'school'], '#22c55e',
+          '#3b82f6'
+        ],
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2
+      }
+    });
+
+    // Ajustar visualização para mostrar toda a rota
+    if (optimizedRoute.waypoints.length > 0) {
+      const coordinates = optimizedRoute.waypoints.map(wp => [wp.longitude, wp.latitude]);
+      const bounds = coordinates.reduce((bounds, coord) => {
+        return bounds.extend(coord as [number, number]);
+      }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+      
+      map.current.fitBounds(bounds, {
+        padding: 50,
+        maxZoom: 15
+      });
+    }
+  }, [optimizedRoute, isMapLoaded, tracedRoute]);
 
   // Desenhar rota traçada automaticamente em tempo real
   useEffect(() => {
@@ -619,18 +961,24 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
     const endMarkerId = 'end-marker';
     
     // Remover rota traçada existente
-    if (map.current.getSource(tracedRouteId)) {
+    if (map.current.getLayer(tracedRouteId)) {
       map.current.removeLayer(tracedRouteId);
+    }
+    if (map.current.getSource(tracedRouteId)) {
       map.current.removeSource(tracedRouteId);
     }
 
     // Remover marcadores existentes
-    if (map.current.getSource(startMarkerId)) {
+    if (map.current.getLayer(startMarkerId)) {
       map.current.removeLayer(startMarkerId);
+    }
+    if (map.current.getSource(startMarkerId)) {
       map.current.removeSource(startMarkerId);
     }
-    if (map.current.getSource(endMarkerId)) {
+    if (map.current.getLayer(endMarkerId)) {
       map.current.removeLayer(endMarkerId);
+    }
+    if (map.current.getSource(endMarkerId)) {
       map.current.removeSource(endMarkerId);
     }
 
@@ -661,7 +1009,7 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
         'line-width': 5,
         'line-opacity': 0.95
       }
-    }, 'optimized-route'); // Adicionar acima da rota planejada para prioridade visual
+    }, map.current.getLayer('optimized-route') ? 'optimized-route' : undefined); // Adicionar acima da rota planejada se existir
 
     // Adicionar marcador de início (primeiro ponto)
     if (tracedRoute.startPoint) {
@@ -762,7 +1110,7 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
       <div ref={mapContainer} className="w-full h-full" />
       
       {/* Status da geocodificação */}
-      {isGeocoding && (
+      {isGeocoding && !hideOverlays && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-50 border border-blue-200 rounded-lg p-3 shadow-lg z-20">
           <div className="flex items-center gap-2">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
@@ -772,7 +1120,7 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
       )}
       
       {/* Erros de geocodificação */}
-      {geocodingErrors.length > 0 && (
+      {geocodingErrors.length > 0 && !hideOverlays && (
         <div className="absolute top-4 left-4 bg-red-50 border border-red-200 rounded-lg p-3 shadow-lg max-w-sm z-20">
           <div className="flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
@@ -789,7 +1137,7 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
       )}
       
       {/* Informações da rota - overlay */}
-      {driverLocation && (
+      {driverLocation && !hideOverlays && (
         <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-4 max-w-sm z-10">
           <div className="flex items-center gap-2 mb-2">
             <Navigation className="w-5 h-5 text-blue-600" />
@@ -822,29 +1170,65 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
         </div>
       )}
       
-      {/* Informações da rota */}
-      {activeRoute && (
+      {/* Informações da rota otimizada */}
+      {optimizedRoute && !hideOverlays && (
         <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-4 max-w-sm z-10">
-          <h3 className="font-semibold text-gray-800 mb-2">Informações da Rota</h3>
+          <div className="flex items-center mb-2">
+            <Route className="w-5 h-5 text-blue-600 mr-2" />
+            <h3 className="font-semibold text-gray-800">Rota Otimizada</h3>
+            {optimizedRoute.traffic && (
+              <div className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                Tráfego
+              </div>
+            )}
+          </div>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">Distância:</span>
-              <span className="font-medium">{activeRoute.studentPickups ? (activeRoute.studentPickups.length * 2).toFixed(1) : '0.0'} km</span>
+              <span className="font-medium">{(optimizedRoute.distance / 1000).toFixed(1)} km</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Tempo estimado:</span>
-              <span className="font-medium">{activeRoute.studentPickups ? (activeRoute.studentPickups.length * 5) : 0} min</span>
+              <span className="font-medium">{Math.floor(optimizedRoute.duration / 60)} min</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Paradas:</span>
-              <span className="font-medium">{activeRoute.studentPickups?.length || 0}</span>
+              <span className="font-medium">{optimizedRoute.waypoints.length - 1}</span>
+            </div>
+            <div className="pt-2 border-t border-gray-200">
+              <div className="text-xs text-gray-500">
+                Rota calculada com tráfego em tempo real
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Status de otimização */}
+      {isOptimizing && !hideOverlays && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-50 border border-blue-200 rounded-lg p-3 shadow-lg z-20">
+          <div className="flex items-center gap-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            <span className="text-sm text-blue-700 font-medium">Calculando rota otimizada...</span>
+          </div>
+        </div>
+      )}
+      
+      {/* Erro de roteamento */}
+      {routeError && !hideOverlays && (
+        <div className="absolute top-16 left-1/2 transform -translate-x-1/2 bg-red-50 border border-red-200 rounded-lg p-3 shadow-lg max-w-sm z-20">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h4 className="text-sm font-medium text-red-800 mb-1">Erro de Roteamento</h4>
+              <p className="text-xs text-red-700">{routeError}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Informações da rota traçada em tempo real */}
-      {tracedRoute && (
+      {tracedRoute && !hideOverlays && (
         <div className="absolute top-20 right-4 bg-green-50 border border-green-200 rounded-lg shadow-lg p-4 max-w-sm z-10">
           <div className="flex items-center mb-2">
             <div className="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
@@ -876,7 +1260,7 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
       )}
       
       {/* Indicador de captura de dados */}
-      {isCapturing && (
+      {isCapturing && !hideOverlays && (
         <div className="absolute bottom-4 right-4 bg-green-100 border border-green-300 rounded-lg p-2 z-10">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>

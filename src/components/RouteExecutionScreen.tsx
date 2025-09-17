@@ -36,7 +36,7 @@ export const RouteExecutionScreen = ({
             id: student.id,
             type: 'student' as const,
             name: student.name || 'Nome não informado',
-            details: 'Embarque em casa',
+            details: student.dropoffLocation === 'school' ? 'Embarque em casa' : 'Desembarque em casa',
             studentData: student
         }))
     ]);

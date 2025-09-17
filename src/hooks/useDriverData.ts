@@ -220,7 +220,8 @@ export const useDriverData = () => {
       guardianEmail: studentData.guardianEmail,
       pickupPoint: studentData.address,
       schoolId: studentData.schoolId,
-      status: 'waiting'
+      status: 'waiting',
+      dropoffLocation: 'school'
     };
     
     console.log(`📚 Criando novo aluno:`, newStudent);
@@ -437,14 +438,24 @@ export const useDriverData = () => {
     }
 
     // Iniciar rastreamento da rota
-    await routeTrackingService.startRoute({
-      driverId: driver?.id || '',
-      direction: overallDirection,
-      pickupPoints: tripStudents.map(ts => {
-        const student = students.find(s => s.id === ts.studentId);
-        return student?.pickupPoint || '';
-      })
+    const mappedStudents = tripStudents.map(ts => {
+      const student = students.find(s => s.id === ts.studentId);
+      return {
+        id: ts.studentId,
+        name: student?.name || '',
+        address: student?.address || student?.pickupPoint || '',
+        lat: student?.lat || 0,
+        lng: student?.lng || 0,
+        direction: ts.direction
+      };
     });
+
+    await routeTrackingService.startRoute(
+      driver?.id || '',
+      driver?.name || '',
+      overallDirection,
+      mappedStudents
+    );
 
     console.log(`🚐 Viagem iniciada: ${route.name}`);
   };

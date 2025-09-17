@@ -13,6 +13,7 @@ interface RouteHistoryItem {
     studentName: string;
     address: string;
     status: 'pending' | 'picked_up' | 'dropped_off';
+    direction: 'to_school' | 'to_home';
   }>;
 }
 

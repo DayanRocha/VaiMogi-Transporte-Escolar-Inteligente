@@ -22,13 +22,15 @@ interface FullScreenMapProps {
     studentName: string;
     status: 'pending' | 'picked_up' | 'dropped_off';
   }>;
+  hideOverlays?: boolean; // Nova prop para ocultar overlays no painel do motorista
 }
 
 export const FullScreenMap: React.FC<FullScreenMapProps> = React.memo(({
   driverLocation,
   isOpen,
   onClose,
-  studentPickups = []
+  studentPickups = [],
+  hideOverlays = false
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -209,8 +211,8 @@ export const FullScreenMap: React.FC<FullScreenMapProps> = React.memo(({
 
   return (
     <div className={`${isOpen ? 'fixed inset-0 bg-black z-50' : 'relative w-full h-full bg-gray-100'}`}>
-      {/* Header - só mostra quando em modo fullscreen */}
-      {isOpen && (
+      {/* Header - só mostra quando em modo fullscreen e overlays não estão ocultos */}
+      {isOpen && !hideOverlays && (
         <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/50 to-transparent">
           <div className="flex items-center justify-between p-4">
             <h2 className="text-white text-lg font-semibold">🗺️ Mapa em Tela Cheia</h2>
@@ -239,8 +241,8 @@ export const FullScreenMap: React.FC<FullScreenMapProps> = React.memo(({
         </div>
       )}
 
-      {/* Informações da localização (overlay inferior) - só em fullscreen */}
-      {driverLocation && isMapLoaded && isOpen && (
+      {/* Informações da localização (overlay inferior) - só em fullscreen e quando overlays não estão ocultos */}
+      {driverLocation && isMapLoaded && isOpen && !hideOverlays && (
         <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/50 to-transparent p-4">
           <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4 mx-auto max-w-md">
             <div className="text-center">
@@ -258,8 +260,8 @@ export const FullScreenMap: React.FC<FullScreenMapProps> = React.memo(({
         </div>
       )}
 
-      {/* Instruções (canto inferior direito) - só em fullscreen */}
-      {isOpen && (
+      {/* Instruções (canto inferior direito) - só em fullscreen e quando overlays não estão ocultos */}
+      {isOpen && !hideOverlays && (
         <div className="absolute bottom-4 right-4 z-10">
           <div className="bg-black/50 text-white text-xs p-2 rounded backdrop-blur-sm">
             Pressione ESC para sair

@@ -24,6 +24,7 @@ export interface ActiveRoute {
     address: string;
     lat?: number;
     lng: number;
+    direction: 'to_school' | 'to_home';
     status: 'pending' | 'picked_up' | 'dropped_off';
   }[];
 }
@@ -385,6 +386,7 @@ class RouteTrackingService {
       address: student.address || 'Endereço não informado',
       lat: student.lat,
       lng: student.lng,
+      direction: student.direction || direction,
       status: 'pending'
     }))
   };

@@ -49,6 +49,8 @@ class VehicleTrackingService {
   
   private lastPosition: VehiclePosition | null = null;
   private positionHistory: VehiclePosition[] = [];
+  private consecutiveRejections = 0; // Contador para modo de emergência
+  private lastValidPosition: VehiclePosition | null = null; // Para interpolação
   private trackingStats: TrackingStats = {
     totalUpdates: 0,
     lastUpdate: null,
@@ -216,6 +218,14 @@ class VehicleTrackingService {
       message: error.message
     });
 
+    // Tentar interpolação quando GPS falha
+    const interpolatedPosition = this.interpolatePosition(Date.now());
+    if (interpolatedPosition) {
+      console.log('🔮 Usando posição interpolada durante falha do GPS');
+      this.notifyPositionUpdate(interpolatedPosition);
+      this.updateRealtimeService(interpolatedPosition);
+    }
+
     // Notificar callbacks de erro
     this.errorCallbacks.forEach(callback => {
       try {
@@ -227,7 +237,7 @@ class VehicleTrackingService {
   }
 
   /**
-   * Valida se a posição é válida
+   * Valida se a posição é válida com modo de emergência
    */
   private isValidPosition(position: VehiclePosition): boolean {
     // Verificar coordenadas válidas
@@ -241,9 +251,24 @@ class VehicleTrackingService {
       return false;
     }
     
-    // Verificar precisão mínima (100m)
-    if (position.accuracy > 100) {
+    // Modo de emergência: aceitar posições com menor precisão após múltiplas rejeições
+    const isEmergencyMode = this.consecutiveRejections > 5;
+    const maxAccuracy = isEmergencyMode ? 5000 : 1500; // 5km em emergência, 1.5km normal
+    
+    if (position.accuracy > maxAccuracy) {
+      this.consecutiveRejections++;
+      console.warn(`🚨 Posição rejeitada (${this.consecutiveRejections}/6 para modo emergência):`, {
+        accuracy: position.accuracy,
+        maxAllowed: maxAccuracy,
+        emergencyMode: isEmergencyMode
+      });
       return false;
+    }
+    
+    // Reset contador quando posição é válida
+    if (this.consecutiveRejections > 0) {
+      console.log(`✅ Posição aceita após ${this.consecutiveRejections} rejeições`);
+      this.consecutiveRejections = 0;
     }
     
     // Verificar velocidade máxima
@@ -251,7 +276,111 @@ class VehicleTrackingService {
       return false;
     }
     
+    // Armazenar como última posição válida para interpolação
+    this.lastValidPosition = position;
     return true;
+  }
+
+  /**
+   * Interpola posição quando GPS falha
+   */
+  private interpolatePosition(currentTime: number): VehiclePosition | null {
+    if (!this.lastValidPosition || this.positionHistory.length < 2) {
+      return null;
+    }
+
+    const timeDiff = currentTime - this.lastValidPosition.timestamp;
+    const maxInterpolationTime = 30000; // 30 segundos
+    
+    if (timeDiff > maxInterpolationTime) {
+      return null; // Muito tempo sem posição válida
+    }
+
+    // Calcular velocidade média baseada no histórico
+    const recentPositions = this.positionHistory.slice(-3);
+    if (recentPositions.length < 2) return this.lastValidPosition;
+
+    let totalDistance = 0;
+    let totalTime = 0;
+    
+    for (let i = 1; i < recentPositions.length; i++) {
+      const distance = this.calculateDistance(
+        recentPositions[i-1].latitude,
+        recentPositions[i-1].longitude,
+        recentPositions[i].latitude,
+        recentPositions[i].longitude
+      );
+      const time = recentPositions[i].timestamp - recentPositions[i-1].timestamp;
+      totalDistance += distance;
+      totalTime += time;
+    }
+
+    const avgSpeed = totalTime > 0 ? totalDistance / (totalTime / 1000) : 0; // m/s
+    const estimatedDistance = avgSpeed * (timeDiff / 1000);
+
+    // Interpolar posição baseada na última direção conhecida
+    const lastTwo = recentPositions.slice(-2);
+    if (lastTwo.length === 2) {
+      const bearing = this.calculateBearing(
+        lastTwo[0].latitude, lastTwo[0].longitude,
+        lastTwo[1].latitude, lastTwo[1].longitude
+      );
+      
+      const newPosition = this.calculateDestination(
+        this.lastValidPosition.latitude,
+        this.lastValidPosition.longitude,
+        estimatedDistance,
+        bearing
+      );
+
+      return {
+        ...newPosition,
+        accuracy: Math.min(this.lastValidPosition.accuracy * 2, 2000), // Reduzir confiança
+        timestamp: currentTime,
+        speed: avgSpeed
+      };
+    }
+
+    return this.lastValidPosition;
+  }
+
+  /**
+   * Calcula bearing entre duas coordenadas
+   */
+  private calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const lat1Rad = lat1 * Math.PI / 180;
+    const lat2Rad = lat2 * Math.PI / 180;
+    
+    const y = Math.sin(dLon) * Math.cos(lat2Rad);
+    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+    
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+
+  /**
+   * Calcula destino baseado em distância e bearing
+   */
+  private calculateDestination(lat: number, lon: number, distance: number, bearing: number): {latitude: number, longitude: number} {
+    const R = 6371000; // Raio da Terra em metros
+    const bearingRad = bearing * Math.PI / 180;
+    const latRad = lat * Math.PI / 180;
+    const lonRad = lon * Math.PI / 180;
+    
+    const newLatRad = Math.asin(
+      Math.sin(latRad) * Math.cos(distance / R) +
+      Math.cos(latRad) * Math.sin(distance / R) * Math.cos(bearingRad)
+    );
+    
+    const newLonRad = lonRad + Math.atan2(
+      Math.sin(bearingRad) * Math.sin(distance / R) * Math.cos(latRad),
+      Math.cos(distance / R) - Math.sin(latRad) * Math.sin(newLatRad)
+    );
+    
+    return {
+      latitude: newLatRad * 180 / Math.PI,
+      longitude: newLonRad * 180 / Math.PI
+    };
   }
 
   /**
