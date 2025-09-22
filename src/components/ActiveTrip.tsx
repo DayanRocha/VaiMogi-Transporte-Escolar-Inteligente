@@ -816,36 +816,39 @@ export const ActiveTrip = ({ trip, students, schools, driver, onUpdateStudentSta
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {/* Mostrar ícone e nome baseado na direção da viagem */}
-                    {studentsAtSchool.some(s => s.tripData.direction === 'to_school') ? (
-                      <>
-                        <div className={`w-12 h-12 ${studentsAtSchool.length > 0 ? 'bg-blue-500' : 'bg-gray-400'} rounded-full flex items-center justify-center`}>
-                          <School className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-800">{group.school.name}</h3>
-                          <p className="text-sm text-gray-500">
-                            {studentsAtSchool.length > 0 ? `Desembarque (${studentsAtSchool.length})` : `Todos desembarcaram (${studentsDisembarked.length})`}
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className={`w-12 h-12 ${studentsAtSchool.length > 0 ? 'bg-green-500' : 'bg-gray-400'} rounded-full flex items-center justify-center`}>
-                          <Home className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-800">Casa</h3>
-                          <p className="text-sm text-gray-500">
-                            {studentsAtSchool.length > 0 ? `Desembarque (${studentsAtSchool.length})` : `Todos desembarcaram (${studentsDisembarked.length})`}
-                          </p>
-                        </div>
-                      </>
-                    )}
+                     {/* Se direção é para escola: mostrar escola */}
+                     {/* Se direção é para casa: mostrar casa */}
+                     {group.students[0]?.tripData.direction === 'to_school' ? (
+                       <>
+                         <div className={`w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center`}>
+                           <School className="w-6 h-6 text-white" />
+                         </div>
+                         <div>
+                           <h3 className="font-semibold text-gray-800">{group.school.name}</h3>
+                           <p className="text-sm text-gray-500">
+                             {studentsAtSchool.length > 0 ? `Embarcados (${studentsAtSchool.length})` : `Todos desembarcaram (${studentsDisembarked.length})`}
+                           </p>
+                         </div>
+                       </>
+                     ) : (
+                       <>
+                         <div className={`w-12 h-12 bg-green-500 rounded-full flex items-center justify-center`}>
+                           <Home className="w-6 h-6 text-white" />
+                         </div>
+                         <div>
+                           <h3 className="font-semibold text-gray-800">Casa</h3>
+                           <p className="text-sm text-gray-500">
+                             {studentsAtSchool.length > 0 ? `Embarcados (${studentsAtSchool.length})` : `Todos desembarcaram (${studentsDisembarked.length})`}
+                           </p>
+                         </div>
+                       </>
+                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Embarque em casa (to_school): User → School */}
-                    {/* Desembarque em casa (from_school): User → Home */}
-                    {studentsAtSchool.some(s => s.tripData.direction === 'to_school') ? (
+                    {/* Mostrar direção baseado na direção da viagem */}
+                    {/* Se direção é para escola: User → School */}
+                    {/* Se direção é para casa: User → Home */}
+                    {group.students[0]?.tripData.direction === 'to_school' ? (
                       <>
                         <User className="w-5 h-5 text-gray-400" />
                         <ArrowRight className="w-4 h-4 text-gray-400" />
