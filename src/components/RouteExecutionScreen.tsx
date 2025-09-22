@@ -179,9 +179,30 @@ export const RouteExecutionScreen = ({
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Home className="w-5 h-5 text-gray-400" />
-                                <span className="text-gray-400">→</span>
-                                <SchoolIcon className="w-5 h-5 text-gray-400" />
+                                {item.type === 'student' && item.studentData ? (
+                                    // Embarque em casa (dropoffLocation = 'school'): Casa → Escola
+                                    // Desembarque em casa (dropoffLocation = 'home'): Escola → Casa
+                                    item.studentData.dropoffLocation === 'school' ? (
+                                        <>
+                                            <Home className="w-5 h-5 text-gray-400" />
+                                            <span className="text-gray-400">→</span>
+                                            <SchoolIcon className="w-5 h-5 text-gray-400" />
+                                        </>
+                                    ) : (
+                                        <>
+                                            <SchoolIcon className="w-5 h-5 text-gray-400" />
+                                            <span className="text-gray-400">→</span>
+                                            <Home className="w-5 h-5 text-gray-400" />
+                                        </>
+                                    )
+                                ) : (
+                                    // Para escolas, manter o padrão casa → escola
+                                    <>
+                                        <Home className="w-5 h-5 text-gray-400" />
+                                        <span className="text-gray-400">→</span>
+                                        <SchoolIcon className="w-5 h-5 text-gray-400" />
+                                    </>
+                                )}
                                 <button
                                     onClick={() => handleRemoveItem(item.id)}
                                     className="ml-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center"

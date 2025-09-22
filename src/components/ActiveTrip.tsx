@@ -401,15 +401,15 @@ const SwipeableStudentItem = ({ student, tripData, school, driver, isGettingLoca
           <div className={`flex items-center gap-2 transition-all duration-200 ${isDragging ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}`}>
             {tripData.direction === 'to_school' ? (
               <>
-                <School className="w-5 h-5 text-gray-400" />
-                <ArrowRight className="w-4 h-4 text-gray-400" />
                 <Home className="w-5 h-5 text-gray-400" />
+                <ArrowRight className="w-4 h-4 text-gray-400" />
+                <School className="w-5 h-5 text-gray-400" />
               </>
             ) : (
               <>
-                <Home className="w-5 h-5 text-gray-400" />
-                <ArrowRight className="w-4 h-4 text-gray-400" />
                 <School className="w-5 h-5 text-gray-400" />
+                <ArrowRight className="w-4 h-4 text-gray-400" />
+                <Home className="w-5 h-5 text-gray-400" />
               </>
             )}
           </div>
@@ -815,20 +815,49 @@ export const ActiveTrip = ({ trip, students, schools, driver, onUpdateStudentSta
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 ${studentsAtSchool.length > 0 ? 'bg-blue-500' : 'bg-gray-400'} rounded-full flex items-center justify-center`}>
-                      <School className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-800">{group.school.name}</h3>
-                      <p className="text-sm text-gray-500">
-                        {studentsAtSchool.length > 0 ? `Desembarque (${studentsAtSchool.length})` : `Todos desembarcaram (${studentsDisembarked.length})`}
-                      </p>
-                    </div>
+                    {/* Mostrar ícone e nome baseado na direção da viagem */}
+                    {studentsAtSchool.some(s => s.tripData.direction === 'to_school') ? (
+                      <>
+                        <div className={`w-12 h-12 ${studentsAtSchool.length > 0 ? 'bg-blue-500' : 'bg-gray-400'} rounded-full flex items-center justify-center`}>
+                          <School className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800">{group.school.name}</h3>
+                          <p className="text-sm text-gray-500">
+                            {studentsAtSchool.length > 0 ? `Desembarque (${studentsAtSchool.length})` : `Todos desembarcaram (${studentsDisembarked.length})`}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className={`w-12 h-12 ${studentsAtSchool.length > 0 ? 'bg-green-500' : 'bg-gray-400'} rounded-full flex items-center justify-center`}>
+                          <Home className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800">Casa</h3>
+                          <p className="text-sm text-gray-500">
+                            {studentsAtSchool.length > 0 ? `Desembarque (${studentsAtSchool.length})` : `Todos desembarcaram (${studentsDisembarked.length})`}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <User className="w-5 h-5 text-gray-400" />
-                    <ArrowRight className="w-4 h-4 text-gray-400" />
-                    <School className="w-5 h-5 text-gray-400" />
+                    {/* Embarque em casa (to_school): User → School */}
+                    {/* Desembarque em casa (from_school): User → Home */}
+                    {studentsAtSchool.some(s => s.tripData.direction === 'to_school') ? (
+                      <>
+                        <User className="w-5 h-5 text-gray-400" />
+                        <ArrowRight className="w-4 h-4 text-gray-400" />
+                        <School className="w-5 h-5 text-gray-400" />
+                      </>
+                    ) : (
+                      <>
+                        <User className="w-5 h-5 text-gray-400" />
+                        <ArrowRight className="w-4 h-4 text-gray-400" />
+                        <Home className="w-5 h-5 text-gray-400" />
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -866,8 +895,21 @@ export const ActiveTrip = ({ trip, students, schools, driver, onUpdateStudentSta
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <User className="w-5 h-5 text-gray-400" />
-                      <ArrowRight className="w-4 h-4 text-gray-400" />
+                      {/* Embarque em casa (to_school): User → School */}
+                      {/* Desembarque em casa (from_school): User → Home */}
+                      {embarkedStudents.some(s => s.tripData.direction === 'to_school') ? (
+                        <>
+                          <User className="w-5 h-5 text-gray-400" />
+                          <ArrowRight className="w-4 h-4 text-gray-400" />
+                          <School className="w-5 h-5 text-gray-400" />
+                        </>
+                      ) : (
+                        <>
+                          <User className="w-5 h-5 text-gray-400" />
+                          <ArrowRight className="w-4 h-4 text-gray-400" />
+                          <Home className="w-5 h-5 text-gray-400" />
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
