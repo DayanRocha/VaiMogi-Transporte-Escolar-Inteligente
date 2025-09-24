@@ -30,6 +30,8 @@ import { realTimeNotificationService } from '@/services/realTimeNotificationServ
 import { Route, Student, Guardian, School as SchoolType } from '@/types/driver';
 import SEOHead from '@/components/SEOHead';
 
+
+
 export default function DriverApp() {
   const navigate = useNavigate();
   
@@ -944,8 +946,10 @@ export default function DriverApp() {
         url="/"
         type="website"
       />
-      <div className="min-h-screen bg-gray-50">
-        {renderContent()}
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <main className="flex-1">
+          {renderContent()}
+        </main>
       </div>
     </>
   );

@@ -13,7 +13,11 @@ import {
   Key,
   ArrowRight,
   Menu,
-  X
+  X,
+  Phone,
+  PhoneCall,
+  Camera,
+  Mail
 } from 'lucide-react';
 import SEOHead from './SEOHead';
 import { VideoPlayer } from './VideoPlayer';
@@ -286,6 +290,23 @@ export const LandingPage = () => {
             <p className="text-gray-400 mb-4">
               Transporte escolar inteligente e seguro para toda a família
             </p>
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
+              <div className="flex items-center gap-2">
+                <Phone className="w-5 h-5" />
+                <a href="tel:+5511959436403" className="text-gray-300 hover:text-white">(11) 95943-6403</a>
+              </div>
+              <div className="flex items-center gap-3">
+                <a href="https://wa.me/5511959436403" target="_blank" rel="noopener noreferrer">
+                  <PhoneCall className="w-5 h-5 text-green-400 hover:text-green-300" title="WhatsApp" />
+                </a>
+                <a href="https://instagram.com/vai_mogi" target="_blank" rel="noopener noreferrer">
+                  <Camera className="w-5 h-5 text-gray-300 hover:text-white" title="Instagram" />
+                </a>
+                <a href="https://facebook.com/vai_mogi" target="_blank" rel="noopener noreferrer">
+                  <Mail className="w-5 h-5 text-gray-300 hover:text-white" title="Facebook" />
+                </a>
+              </div>
+            </div>
             <p className="text-sm text-gray-500">
               © 2025 VaiMogi. Todos os direitos reservados.
             </p>

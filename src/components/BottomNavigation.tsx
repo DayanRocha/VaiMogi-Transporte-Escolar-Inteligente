@@ -18,7 +18,7 @@ const tabs = [
 
 export const BottomNavigation = ({ activeTab, onTabChange, hasActiveTrip }: BottomNavigationProps) => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-gray-200/50 px-4 py-3 z-50 safe-area shadow-lg">
+    <nav className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white/80 to-white/95 backdrop-blur-xl border-t border-gray-200/30 px-4 py-3 z-50 safe-area shadow-2xl">
       <div className="flex justify-around items-center max-w-md mx-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -31,24 +31,26 @@ export const BottomNavigation = ({ activeTab, onTabChange, hasActiveTrip }: Bott
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                "flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all duration-300 relative transform active:scale-95 min-h-[44px] min-w-[44px]",
+                "flex flex-col items-center gap-1 px-4 py-2 rounded-3xl transition-all duration-300 ease-out relative group min-h-[50px] min-w-[50px] focus:outline-none focus:ring-2 focus:ring-orange-500/50",
                 isActive 
-                  ? "text-orange-500 bg-orange-50 shadow-md scale-105" 
-                  : "text-gray-600 hover:text-orange-500 hover:bg-gray-50",
+                  ? "text-orange-600 bg-gradient-to-r from-orange-50 to-orange-100 shadow-lg scale-105 ring-2 ring-orange-200/50" 
+                  : "text-gray-700 hover:text-orange-600 hover:bg-white/60 hover:shadow-md hover:scale-105 hover:ring-1 hover:ring-orange-200/30",
                 showTripIndicator && "animate-pulse"
               )}
             >
-              <Icon className={cn(
-                "w-6 h-6 transition-all duration-200", 
-                showTripIndicator && "text-orange-500",
-                isActive && "scale-110"
-              )} />
+              <div className="relative">
+                <Icon className={cn(
+                  "w-7 h-7 transition-all duration-300 ease-out group-hover:scale-110", 
+                  showTripIndicator && "text-orange-600",
+                  isActive && "text-orange-600 scale-110 drop-shadow-sm"
+                )} />
+              </div>
               <span className={cn(
-                "text-xs font-medium transition-all duration-200",
-                isActive && "font-semibold"
+                "text-xs font-semibold tracking-wide transition-all duration-300 opacity-90",
+                isActive ? "text-orange-600 drop-shadow-sm" : "text-gray-600 group-hover:text-orange-600"
               )}>{tab.label}</span>
               {showTripIndicator && (
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full animate-pulse shadow-lg" />
+                <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-bounce shadow-lg border-2 border-white" />
               )}
             </button>
           );
