@@ -118,74 +118,128 @@ const SwipeableStudentItem = ({ student, tripData, school, driver, isGettingLoca
   const handleMapClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     
-    onSetIsGettingLocation(true);
-    
-    // Determinar origem e destino baseado no modo da rota ativa
-    // to_school = "Embarque em casa" - origem: endereço do motorista → destino: casa do aluno
-    // to_home = "Desembarcar em casa" - origem: endereço do motorista → destino: escola
+    // Verificar se é rota de embarque em casa antes de prosseguir
     const isEmbarcarEmCasa = tripData.direction === 'to_school';
-    const originAddress = driver.address; // Sempre parte do endereço do motorista
-    const destinationAddress = isEmbarcarEmCasa ? student.pickupPoint : school.address;
-    const destinationName = isEmbarcarEmCasa ? `casa de ${student.name}` : school.name;
-    const modeDescription = isEmbarcarEmCasa ? 'Embarcar em casa' : 'Desembarcar em casa';
     
-    console.log(`🗺️ Modo: ${modeDescription}`);
-    console.log(`🗺️ Origem: Endereço do motorista (${originAddress})`);
+    if (!isEmbarcarEmCasa) {
+      onShowLocationMessage('Esta funcionalidade está disponível apenas para rotas de embarque em casa.', 3000);
+      return;
+    }
+    
+    onSetIsGettingLocation(true);
+    onShowLocationMessage('Obtendo sua localização atual...', 1500);
+    
+    // Determinar origem e destino para embarque em casa
+    const destinationAddress = student.pickupPoint || student.address;
+    const destinationName = `casa de ${student.name}`;
+    
+    console.log(`🗺️ Modo: Embarque em casa`);
+    console.log(`🗺️ Origem: Localização atual do motorista (GPS)`);
     console.log(`🗺️ Destino: ${destinationName} (${destinationAddress})`);
     
     // Verificar se geolocalização está disponível
     if (!navigator.geolocation) {
       console.error('❌ Geolocalização não suportada neste navegador');
-      onShowLocationMessage('Geolocalização não suportada neste dispositivo. Não foi possível iniciar a navegação.');
+      onShowLocationMessage('Geolocalização não suportada neste dispositivo. Verifique as configurações do navegador.', 4000);
       onSetIsGettingLocation(false);
       return;
     }
     
-    // Solicitar localização atual
+    // Verificar se o endereço do aluno está disponível
+    if (!destinationAddress) {
+      console.error('❌ Endereço do aluno não encontrado');
+      onShowLocationMessage('Endereço do aluno não cadastrado. Verifique os dados do estudante.', 4000);
+      onSetIsGettingLocation(false);
+      return;
+    }
+    
+    // Solicitar localização atual com configurações otimizadas
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
+        const { latitude, longitude, accuracy } = position.coords;
         const destination = encodeURIComponent(destinationAddress);
         
-        // Usar coordenadas atuais como origem
-        const url = `https://www.google.com/maps/dir/?api=1&origin=${latitude},${longitude}&destination=${destination}&travelmode=driving`;
+        // Verificar precisão da localização
+        if (accuracy > 100) {
+          console.warn(`⚠️ Precisão baixa: ${accuracy}m`);
+          onShowLocationMessage(`Localização obtida com precisão de ${Math.round(accuracy)}m. Abrindo rota...`, 2000);
+        } else {
+          onShowLocationMessage(`Localização precisa obtida! Abrindo rota para ${student.name}`, 2000);
+        }
+        
+        // Criar URL do Google Maps com coordenadas atuais e modo de navegação
+        const url = `https://www.google.com/maps/dir/?api=1&origin=${latitude},${longitude}&destination=${destination}&travelmode=driving&dir_action=navigate`;
         
         console.log(`🗺️ Abrindo rota no Google Maps:`);
-        console.log(`  📍 Origem (Localização Atual do Motorista): ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
-        console.log(`  🎯 Destino (${destinationName}): ${destinationAddress}`);
-        console.log(`  📊 Precisão: ${position.coords.accuracy}m`);
-        console.log(`  🚐 Modo: ${modeDescription} - ${isEmbarcarEmCasa ? 'Motorista → Casa do Aluno' : 'Motorista → Escola'}`);
+        console.log(`  📍 Origem (GPS Atual): ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+        console.log(`  🎯 Destino: ${destinationName} (${destinationAddress})`);
+        console.log(`  📊 Precisão: ${accuracy.toFixed(1)}m`);
+        console.log(`  🚐 Modo: Embarque em casa - Motorista → Casa do Aluno`);
         
-        onShowLocationMessage(`Localização obtida! Rota para ${destinationName}`, 2000);
-        window.open(url, '_blank');
+        // Abrir Google Maps em nova aba
+        try {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        } catch (error) {
+          console.error('❌ Erro ao abrir Google Maps:', error);
+          onShowLocationMessage('Erro ao abrir o mapa. Tente novamente.', 3000);
+        }
+        
         onSetIsGettingLocation(false);
       },
       (error) => {
         console.error('❌ Erro ao obter localização:', error);
         
         let errorMessage = '';
+        let fallbackAction = false;
+        
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = 'Permissão de localização negada. Usando endereço cadastrado.';
+            errorMessage = 'Permissão de localização negada. Ative a localização nas configurações do navegador.';
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Localização indisponível. Usando endereço cadastrado.';
+            errorMessage = 'Localização GPS indisponível. Verifique se o GPS está ativo.';
+            fallbackAction = true;
             break;
           case error.TIMEOUT:
-            errorMessage = 'Tempo limite excedido. Usando endereço cadastrado.';
+            errorMessage = 'Tempo limite para obter localização. Tentando novamente...';
+            fallbackAction = true;
             break;
           default:
-            errorMessage = 'Erro ao obter localização. Usando endereço cadastrado.';
+            errorMessage = 'Erro desconhecido ao obter localização.';
+            fallbackAction = true;
             break;
         }
         
         onShowLocationMessage(errorMessage, 4000);
+        
+        // Fallback: usar endereço cadastrado do motorista se disponível
+        if (fallbackAction && driver.address) {
+          setTimeout(() => {
+            const origin = encodeURIComponent(driver.address);
+            const destination = encodeURIComponent(destinationAddress);
+            const fallbackUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving&dir_action=navigate`;
+            
+            console.log(`🗺️ Usando endereço cadastrado como fallback:`);
+            console.log(`  📍 Origem: ${driver.address}`);
+            console.log(`  🎯 Destino: ${destinationName}`);
+            
+            onShowLocationMessage(`Usando endereço cadastrado. Abrindo rota para ${student.name}`, 2000);
+            
+            try {
+              window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
+            } catch (error) {
+              console.error('❌ Erro ao abrir Google Maps (fallback):', error);
+              onShowLocationMessage('Erro ao abrir o mapa. Verifique sua conexão.', 3000);
+            }
+          }, 2000);
+        }
+        
         onSetIsGettingLocation(false);
       },
       {
-        enableHighAccuracy: true, // Usar GPS se disponível para maior precisão
-        timeout: 10000, // 10 segundos de timeout
-        maximumAge: 60000 // Cache de 1 minuto (localização pode mudar rapidamente)
+        enableHighAccuracy: true, // Usar GPS para maior precisão
+        timeout: 15000, // 15 segundos de timeout (aumentado)
+        maximumAge: 30000 // Cache de 30 segundos (reduzido para maior atualização)
       }
     );
   };
@@ -346,22 +400,25 @@ const SwipeableStudentItem = ({ student, tripData, school, driver, isGettingLoca
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button 
-              onClick={handleMapClick} 
-              disabled={isGettingLocation}
-              className={`p-2 rounded-full transition-colors ${
-                isGettingLocation 
-                  ? 'bg-gray-200 cursor-not-allowed' 
-                  : 'hover:bg-gray-100'
-              }`}
-              title={isGettingLocation ? 'Obtendo localização...' : 
-                `Ver rota do motorista até ${tripData.direction === 'to_school' ? `casa de ${student.name}` : school.name}`
-              }
-            >
-              <Map className={`w-6 h-6 ${
-                isGettingLocation ? 'text-gray-400 animate-pulse' : 'text-orange-500'
-              }`} />
-            </button>
+            {/* Mostrar botão de mapa apenas para embarque em casa */}
+            {tripData.direction === 'to_school' && (
+              <button 
+                onClick={handleMapClick} 
+                disabled={isGettingLocation}
+                className={`p-2 rounded-full transition-colors ${
+                  isGettingLocation 
+                    ? 'bg-gray-200 cursor-not-allowed' 
+                    : 'hover:bg-gray-100'
+                }`}
+                title={isGettingLocation ? 'Obtendo localização...' : 
+                  `Ver rota do motorista até casa de ${student.name}`
+                }
+              >
+                <Map className={`w-6 h-6 ${
+                  isGettingLocation ? 'text-gray-400 animate-pulse' : 'text-orange-500'
+                }`} />
+              </button>
+            )}
             <div className={`w-12 h-12 ${getStatusColor(tripData.status)} rounded-full flex items-center justify-center relative transition-all duration-200 ${
               isDragging ? 'scale-110' : 'scale-100'
             }`}>

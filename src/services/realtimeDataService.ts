@@ -711,6 +711,34 @@ class RealtimeDataService {
   }
 
   /**
+   * Atualiza a localização do motorista
+   * Método chamado pelo vehicleTrackingService
+   */
+  updateDriverLocation(location: RouteLocation): void {
+    try {
+      console.log('📍 Atualizando localização do motorista via realtimeDataService:', location);
+      
+      // Atualizar dados locais
+      if (this.lastKnownData) {
+        this.lastKnownData = {
+          ...this.lastKnownData,
+          driverLocation: location
+        };
+        
+        // Notificar listeners
+        this.notifyListeners(this.lastKnownData);
+      }
+      
+      // Também atualizar no routeTrackingService para manter sincronização
+      routeTrackingService.updateDriverLocation(location);
+      
+      console.log('✅ Localização do motorista atualizada com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao atualizar localização do motorista:', error);
+    }
+  }
+
+  /**
    * Captura endereço de um estudante específico (método público)
    */
   async captureStudentAddress(studentId: string, address: string): Promise<{ coordinates: [number, number] } | null> {

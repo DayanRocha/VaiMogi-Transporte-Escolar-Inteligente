@@ -15,21 +15,41 @@ import { AlertCircle, Navigation, Clock, MapPin, Route } from 'lucide-react';
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZGF5YW5hcmF1am8iLCJhIjoiY2x6cGNhZGNzMGNhZzJqcGNqZGNqZGNqZCJ9.example';
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
-// Hook de debounce para otimizar atualizações
-const useDebounce = (value: any, delay: number) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  
+// Hook personalizado para debounce otimizado
+const useDebounce = <T,>(value: T, delay: number): T => {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  const timeoutRef = useRef<NodeJS.Timeout>();
+
   useEffect(() => {
-    const handler = setTimeout(() => {
+    // Limpa timeout anterior se existir
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    timeoutRef.current = setTimeout(() => {
       setDebouncedValue(value);
     }, delay);
-    
+
     return () => {
-      clearTimeout(handler);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
     };
   }, [value, delay]);
-  
+
   return debouncedValue;
+};
+
+// Hook para throttle de funções
+const useThrottle = <T extends (...args: any[]) => any>(func: T, delay: number): T => {
+  const lastRun = useRef(Date.now());
+  
+  return useCallback((...args: Parameters<T>) => {
+    if (Date.now() - lastRun.current >= delay) {
+      func(...args);
+      lastRun.current = Date.now();
+    }
+  }, [func, delay]) as T;
 };
 
 // Adicionar estilos CSS para animações e marcadores
@@ -165,6 +185,12 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [lastRenderTime, setLastRenderTime] = useState(Date.now());
+  const [performanceMetrics, setPerformanceMetrics] = useState({
+    renderCount: 0,
+    averageRenderTime: 0,
+    lastUpdateTime: Date.now()
+  });
   
   // Refs para marcadores
   const driverMarker = useRef<mapboxgl.Marker | null>(null);
@@ -180,6 +206,20 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
   const directionsService = useMemo(() => new MapboxDirectionsService(), []);
   const locationService = useMemo(() => new RealTimeLocationService(), []);
   
+  // Função throttled para atualizações de performance
+  const updatePerformanceMetrics = useThrottle(() => {
+    const now = Date.now();
+    const renderTime = now - lastRenderTime;
+    
+    setPerformanceMetrics(prev => ({
+      renderCount: prev.renderCount + 1,
+      averageRenderTime: (prev.averageRenderTime + renderTime) / 2,
+      lastUpdateTime: now
+    }));
+    
+    setLastRenderTime(now);
+  }, 2000);
+  
   // Hooks para dados em tempo real
   const { driverLocation, isCapturing } = useRealtimeData(driver.id);
   const { activeRoute, nextDestination } = useRouteTracking();
@@ -187,9 +227,9 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
   const { geocodeStudentAddress, geocodeSchoolAddress, isGeocoding, geocodingErrors } = useGeocoding();
   
   // Aplicar debounce nas atualizações críticas
-  const debouncedDriverLocation = useDebounce(driverLocation, 1000); // 1 segundo
-  const debouncedStudents = useDebounce(students, 2000); // 2 segundos
-  const debouncedSchools = useDebounce(schools, 3000); // 3 segundos
+  const debouncedDriverLocation = useDebounce(driverLocation, 500); // 500ms
+  const debouncedStudents = useDebounce(students, 800); // 800ms
+  const debouncedSchools = useDebounce(schools, 800); // 800ms
   
   // Hook para rastreamento automático de rota
   const { 
@@ -209,10 +249,33 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
     });
   }, []);
 
-  // Inicialização do mapa
+  // Função helper para verificar se o estilo do mapa está carregado
+  const isMapStyleLoaded = useCallback(() => {
+    return map.current && map.current.isStyleLoaded();
+  }, []);
+
+  // Função helper para executar operações no mapa quando o estilo estiver carregado
+  const executeWhenStyleLoaded = useCallback((operation: () => void) => {
+    if (!map.current) return;
+    
+    if (isMapStyleLoaded()) {
+      operation();
+    } else {
+      // Aguardar o evento 'styledata' para garantir que o estilo está carregado
+      const onStyleLoad = () => {
+        operation();
+        map.current?.off('styledata', onStyleLoad);
+      };
+      map.current.on('styledata', onStyleLoad);
+    }
+  }, [isMapStyleLoaded]);
+
+  // Inicialização do mapa com otimizações
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
+    const startTime = performance.now();
+    
     // Usar localização do motorista se disponível, senão usar São Paulo como padrão
     const initialCenter = driverLocation 
       ? [driverLocation.longitude, driverLocation.latitude] 
@@ -225,18 +288,34 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
       style: 'mapbox://styles/mapbox/streets-v12',
       center: initialCenter,
       zoom: initialZoom,
-      attributionControl: false
+      attributionControl: false,
+      // Otimizações de performance
+      antialias: false, // Desabilita antialiasing para melhor performance
+      optimizeForTerrain: true,
+      preserveDrawingBuffer: false,
+      refreshExpiredTiles: false
     });
 
     map.current.on('load', () => {
+      const loadTime = performance.now() - startTime;
+      console.log(`🗺️ Mapa carregado em ${loadTime.toFixed(2)}ms`);
+      
       setIsMapLoaded(true);
+      updatePerformanceMetrics();
+    });
+
+    // Otimização: reduz a frequência de renderização
+    map.current.on('render', () => {
+      updatePerformanceMetrics();
     });
 
     // Adicionar controles de navegação
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
     map.current.addControl(new mapboxgl.GeolocateControl({
       positionOptions: {
-        enableHighAccuracy: true
+        enableHighAccuracy: true,
+        timeout: 6000,
+        maximumAge: 600000
       },
       trackUserLocation: true,
       showUserHeading: true
@@ -248,30 +327,109 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
         map.current = null;
       }
     };
-  }, [driverLocation]); // Reinicializar quando a localização do motorista estiver disponível
+  }, [driverLocation, updatePerformanceMetrics]); // Reinicializar quando a localização do motorista estiver disponível
 
-  // Centralizar mapa na localização do motorista quando disponível pela primeira vez
+  // Centralizar mapa na localização do motorista com animação suave e controle inteligente (otimizada)
   useEffect(() => {
-    if (!map.current || !isMapLoaded || !driverLocation) return;
+    if (!map.current || !isMapLoaded || !debouncedDriverLocation) return;
+
+    const { latitude, longitude } = debouncedDriverLocation;
+    const currentCenter = map.current.getCenter();
     
-    // Centralizar o mapa na localização atual do motorista com animação suave
-    map.current.flyTo({
-      center: [driverLocation.longitude, driverLocation.latitude],
-      zoom: 15,
-      duration: 2000, // Animação de 2 segundos
-      essential: true // Esta animação é considerada essencial
-    });
+    // Verificar se é a primeira vez que recebemos a localização do motorista
+    const isFirstLocation = !currentCenter || 
+      (Math.abs(currentCenter.lat - latitude) > 0.01 || 
+       Math.abs(currentCenter.lng - longitude) > 0.01);
+    
+    // Calcula distância para evitar movimentos desnecessários
+    if (!isFirstLocation) {
+      const distance = Math.sqrt(
+        Math.pow(currentCenter.lng - longitude, 2) + 
+        Math.pow(currentCenter.lat - latitude, 2)
+      );
+      
+      // Só move se a distância for significativa (> 0.001 graus ≈ 100m)
+      if (distance < 0.001) {
+        return;
+      }
+    }
+    
+    if (isFirstLocation) {
+      // Primeira centralização - mais rápida e com zoom adequado
+      map.current.easeTo({
+        center: [longitude, latitude],
+        zoom: 15,
+        duration: 1000,
+        essential: true
+      });
+    } else {
+      // Atualizações subsequentes - movimento mais suave
+      map.current.easeTo({
+        center: [longitude, latitude],
+        duration: 1500,
+        essential: true,
+        easing: (t) => t * (2 - t) // Easing otimizado
+      });
+    }
 
     console.log('🎯 Mapa centralizado na localização atual do motorista:', {
-      lat: driverLocation.latitude,
-      lng: driverLocation.longitude,
-      timestamp: driverLocation.timestamp
+      lat: debouncedDriverLocation.latitude,
+      lng: debouncedDriverLocation.longitude,
+      timestamp: debouncedDriverLocation.timestamp
     });
-  }, [driverLocation, isMapLoaded]); // Executar apenas quando a localização estiver disponível
+    updatePerformanceMetrics();
+  }, [debouncedDriverLocation, isMapLoaded, updatePerformanceMetrics]); // Executar apenas quando a localização estiver disponível
 
-  // Integrar serviço de localização em tempo real
+  // Integrar serviço de localização em tempo real com otimizações de performance
   useEffect(() => {
     if (!activeTrip || !debouncedDriverLocation) return;
+
+    let lastUpdateTime = 0;
+    const UPDATE_THROTTLE = 3000; // Throttle de 3 segundos para otimizar performance
+    
+    // Configurar callback para atualizações de localização
+    const handleLocationUpdate = (location: DriverLocation) => {
+      const now = Date.now();
+      
+      // Throttle das atualizações para melhor performance
+      if (now - lastUpdateTime < UPDATE_THROTTLE) {
+        return;
+      }
+      lastUpdateTime = now;
+      
+      console.log('📍 Localização do motorista atualizada:', location);
+      
+      // Atualizar marcador do motorista se existir
+      if (driverMarker.current) {
+        driverMarker.current.setLngLat([location.longitude, location.latitude]);
+        
+        // Atualizar popup com informações atualizadas
+        const popup = driverMarker.current.getPopup();
+        if (popup) {
+          popup.setHTML(`
+            <div class="p-3">
+              <h3 class="font-semibold text-blue-800 mb-2">🚐 Motorista</h3>
+              <div class="space-y-1 text-sm">
+                <p><strong>Velocidade:</strong> ${location.speed?.toFixed(1) || '0'} km/h</p>
+                <p><strong>Direção:</strong> ${location.heading?.toFixed(0) || 'N/A'}°</p>
+                <p><strong>Precisão:</strong> ${location.accuracy?.toFixed(0) || 'N/A'}m</p>
+                <p><strong>Última atualização:</strong> ${formatTime(location.timestamp)}</p>
+              </div>
+            </div>
+          `);
+        }
+      }
+      
+      // Centralizar mapa na nova posição do motorista de forma suave
+      if (map.current) {
+        map.current.easeTo({
+          center: [location.longitude, location.latitude],
+          duration: 2000,
+          essential: true,
+          easing: (t) => t * (2 - t) // Easing suave
+        });
+      }
+    };
 
     // Configurar rastreamento em tempo real
     locationService.startTracking({
@@ -296,112 +454,68 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
     };
   }, [activeTrip, debouncedDriverLocation, locationService]);
 
-  // Atualizar localização do motorista no mapa com debounce
+  // Criar marcador customizado do motorista com melhor visibilidade
   useEffect(() => {
     if (!map.current || !isMapLoaded || !debouncedDriverLocation) return;
     
     const driverLocation = debouncedDriverLocation;
 
-    // Criar ou atualizar marcador do motorista
-    if (!driverMarker.current) {
-      const el = document.createElement('div');
-      el.className = 'driver-marker';
-      el.style.cssText = 'width: 30px; height: 30px; background: linear-gradient(45deg, #ef4444, #dc2626); border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.3); cursor: pointer; position: relative; animation: pulse 2s infinite;';
-
-      // Adicionar ícone do motorista
-      el.innerHTML = `
-        <div style="
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          color: white;
-          font-size: 12px;
-          font-weight: bold;
-        ">🚐</div>
-      `;
-
-      // Adicionar informações de velocidade se disponível
-      const speedInfo = driverLocation.speed ? `
-        <div style="
-          position: absolute;
-          top: -25px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: rgba(0,0,0,0.8);
-          color: white;
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-size: 10px;
-          white-space: nowrap;
-        ">${driverLocation.speed.toFixed(0)} km/h</div>
-      ` : '';
-      
-      if (speedInfo) {
-        el.innerHTML += speedInfo;
-      }
-
-      driverMarker.current = new mapboxgl.Marker(el)
-        .setLngLat([driverLocation.longitude, driverLocation.latitude])
-        .setPopup(
-          new mapboxgl.Popup({ offset: 25 })
-            .setHTML(`
-              <div class="p-3">
-                <h3 class="font-semibold text-gray-800 mb-2">Motorista em Movimento</h3>
-                <div class="space-y-1 text-sm">
-                  <p class="text-gray-600">Última atualização: ${formatTime(driverLocation.timestamp)}</p>
-                  ${driverLocation.speed ? `<p class="text-gray-600">Velocidade: ${driverLocation.speed.toFixed(1)} km/h</p>` : ''}
-                  ${driverLocation.heading ? `<p class="text-gray-600">Direção: ${driverLocation.heading.toFixed(0)}°</p>` : ''}
-                  <div class="pt-2 border-t border-gray-200">
-                    <div class="flex items-center gap-1">
-                      <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      <span class="text-xs text-green-600">Rastreamento ativo</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            `)
-        )
-        .addTo(map.current);
-    } else {
-      driverMarker.current.setLngLat([driverLocation.longitude, driverLocation.latitude]);
-      
-      // Atualizar popup com informações mais recentes
-      const popup = driverMarker.current.getPopup();
-      if (popup) {
-        popup.setHTML(`
-          <div class="p-3">
-            <h3 class="font-semibold text-gray-800 mb-2">Motorista em Movimento</h3>
-            <div class="space-y-1 text-sm">
-              <p class="text-gray-600">Última atualização: ${formatTime(driverLocation.timestamp)}</p>
-              ${driverLocation.speed ? `<p class="text-gray-600">Velocidade: ${driverLocation.speed.toFixed(1)} km/h</p>` : ''}
-              ${driverLocation.heading ? `<p class="text-gray-600">Direção: ${driverLocation.heading.toFixed(0)}°</p>` : ''}
-              <div class="pt-2 border-t border-gray-200">
-                <div class="flex items-center gap-1">
-                  <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span class="text-xs text-green-600">Rastreamento ativo</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        `);
-      }
-    }
-
-    // Suavemente seguir a localização do motorista (apenas se não for a primeira vez)
+    // Remover marcador existente
     if (driverMarker.current) {
-      map.current.easeTo({
-        center: [driverLocation.longitude, driverLocation.latitude],
-        duration: 1000
-      });
+      driverMarker.current.remove();
     }
 
-    console.log('🚐 Localização do motorista atualizada:', {
-      lat: driverLocation.latitude,
-      lng: driverLocation.longitude,
-      timestamp: driverLocation.timestamp,
-      speed: driverLocation.speed
-    });
+    // Criar novo marcador do motorista com design mais destacado
+    const el = document.createElement('div');
+    el.className = 'driver-marker';
+    el.innerHTML = `
+      <div class="relative">
+        <div class="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-full border-4 border-white shadow-2xl flex items-center justify-center animate-pulse">
+          <svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
+            <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1V8a1 1 0 00-1-1h-3z"/>
+          </svg>
+        </div>
+        <div class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-red-500 rotate-45 border-b border-r border-white"></div>
+        <div class="absolute -top-1 -right-1 w-5 h-5 bg-green-400 rounded-full border-2 border-white animate-ping"></div>
+      </div>
+    `;
+
+    // Criar popup com informações do motorista
+    const popup = new mapboxgl.Popup({
+      offset: 35,
+      closeButton: true,
+      closeOnClick: false,
+      className: 'driver-popup-enhanced'
+    }).setHTML(`
+      <div class="p-4 bg-gradient-to-r from-red-50 to-red-100">
+        <h3 class="font-bold text-red-800 mb-3 flex items-center">
+          🚐 Motorista em Tempo Real
+          <span class="ml-2 w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+        </h3>
+        <div class="space-y-2 text-sm">
+          <p class="flex justify-between"><strong>Velocidade:</strong> <span class="text-red-700">${driverLocation.speed?.toFixed(1) || '0'} km/h</span></p>
+          <p class="flex justify-between"><strong>Direção:</strong> <span class="text-red-700">${driverLocation.heading?.toFixed(0) || 'N/A'}°</span></p>
+          <p class="flex justify-between"><strong>Precisão GPS:</strong> <span class="text-red-700">${driverLocation.accuracy?.toFixed(0) || 'N/A'}m</span></p>
+          <p class="flex justify-between"><strong>Atualização:</strong> <span class="text-red-700">${formatTime(driverLocation.timestamp)}</span></p>
+        </div>
+      </div>
+    `);
+
+    // Criar e adicionar marcador
+    driverMarker.current = new mapboxgl.Marker(el)
+      .setLngLat([driverLocation.longitude, driverLocation.latitude])
+      .setPopup(popup)
+      .addTo(map.current);
+
+    // Mostrar popup automaticamente para destacar o motorista
+    setTimeout(() => {
+      if (driverMarker.current) {
+        driverMarker.current.togglePopup();
+      }
+    }, 1000);
+
+    console.log('🚐 Marcador do motorista criado com destaque:', driverLocation);
   }, [debouncedDriverLocation, isMapLoaded, driver.name, van.licensePlate, formatTime]);
 
   // Adicionar ícones personalizados do Mapbox
@@ -491,23 +605,46 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
     }
   }, []);
 
+  // Memoização dos dados dos estudantes para otimizar performance
+  const studentsGeoJSON = useMemo(() => {
+    if (!debouncedStudents?.length) return null;
+    
+    return {
+      type: 'FeatureCollection' as const,
+      features: debouncedStudents.map((student) => ({
+        type: 'Feature' as const,
+        properties: {
+          id: student.id,
+          name: student.name,
+          address: student.address,
+          school: student.school,
+          status: 'pending'
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: student.longitude && student.latitude ? [student.longitude, student.latitude] : [0, 0]
+        }
+      }))
+    };
+  }, [debouncedStudents]);
+
   // Criar marcadores de estudantes usando símbolos do Mapbox com debounce
   useEffect(() => {
-    if (!map.current || !isMapLoaded || !debouncedStudents.length) return;
+    if (!map.current || !isMapLoaded || !studentsGeoJSON) return;
     
-    const students = debouncedStudents;
-
+    const startTime = performance.now();
     const sourceId = 'students-source';
     const layerId = 'students-layer';
     const labelsLayerId = 'students-labels-layer';
 
     // Remover camadas e fonte existentes
-    if (map.current!.getLayer(labelsLayerId)) {
-      map.current!.removeLayer(labelsLayerId);
-    }
-    if (map.current!.getLayer(layerId)) {
-      map.current!.removeLayer(layerId);
-    }
+    const layersToRemove = [labelsLayerId, layerId];
+    layersToRemove.forEach(layer => {
+      if (map.current!.getLayer(layer)) {
+        map.current!.removeLayer(layer);
+      }
+    });
+    
     if (map.current!.getSource(sourceId)) {
       map.current!.removeSource(sourceId);
     }
@@ -516,7 +653,7 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
     const processStudentsData = async () => {
       const studentsWithCoords = [];
       
-      for (const student of students) {
+      for (const student of debouncedStudents) {
         if (!student.address) continue;
         
         let coordinates: [number, number] | null = null;
@@ -552,46 +689,60 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
         features: studentsWithCoords
       };
 
-      // Adicionar fonte de dados
-      map.current!.addSource(sourceId, {
-        type: 'geojson',
-        data: studentsData
+      // Adicionar fonte de dados com otimizações e verificação de estilo carregado
+      executeWhenStyleLoaded(() => {
+        if (!map.current) return;
+        
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: studentsData,
+          cluster: false,
+          tolerance: 0.375
+        });
+
+        // Adicionar camada de símbolos com melhor visibilidade
+        map.current.addLayer({
+          id: layerId,
+          type: 'symbol',
+          source: sourceId,
+          layout: {
+            'icon-image': 'student-pending',
+            'icon-size': 1.3, // Aumentar tamanho para melhor visibilidade
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+            'symbol-sort-key': ['get', 'id']
+          },
+          paint: {
+            'icon-opacity': 1.0
+          }
+        });
+
+        // Adicionar camada de labels com melhor legibilidade
+        map.current.addLayer({
+          id: labelsLayerId,
+          type: 'symbol',
+          source: sourceId,
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-offset': [0, 2.2],
+            'text-anchor': 'top',
+            'text-size': 14, // Aumentar tamanho da fonte
+            'text-allow-overlap': false,
+            'text-ignore-placement': false,
+            'text-max-width': 8,
+            'symbol-spacing': 250
+          },
+          paint: {
+            'text-color': '#dc2626', // Cor vermelha para estudantes pendentes
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 2.5 // Aumentar halo para melhor legibilidade
+          }
+        });
       });
 
-      // Adicionar camada de símbolos
-      map.current!.addLayer({
-        id: layerId,
-        type: 'symbol',
-        source: sourceId,
-        layout: {
-          'icon-image': 'student-pending',
-          'icon-size': 1,
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true
-        }
-      });
-
-      // Adicionar camada de labels
-      map.current!.addLayer({
-        id: labelsLayerId,
-        type: 'symbol',
-        source: sourceId,
-        layout: {
-          'text-field': ['get', 'name'],
-          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-          'text-offset': [0, 2],
-          'text-anchor': 'top',
-          'text-size': 12
-        },
-        paint: {
-          'text-color': '#333',
-          'text-halo-color': '#fff',
-          'text-halo-width': 1
-        }
-      });
-
-      // Adicionar evento de clique para popups
-      const handleStudentClick = (e: any) => {
+      // Event handlers memoizados
+      const handleStudentClick = useCallback((e: any) => {
         const features = map.current!.queryRenderedFeatures(e.point, {
           layers: [layerId]
         });
@@ -600,7 +751,7 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
           const feature = features[0];
           const { name, address, school } = feature.properties!;
           
-          new mapboxgl.Popup()
+          new mapboxgl.Popup({ closeOnClick: true, maxWidth: '300px' })
             .setLngLat(e.lngLat)
             .setHTML(`
               <div class="p-2">
@@ -611,37 +762,66 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
             `)
             .addTo(map.current!);
         }
-      };
+      }, []);
 
-      map.current!.on('click', layerId, handleStudentClick);
-      map.current!.on('mouseenter', layerId, () => {
+      const handleMouseEnter = useCallback(() => {
         map.current!.getCanvas().style.cursor = 'pointer';
-      });
-      map.current!.on('mouseleave', layerId, () => {
+      }, []);
+
+      const handleMouseLeave = useCallback(() => {
         map.current!.getCanvas().style.cursor = '';
-      });
+      }, []);
+
+      // Adicionar event listeners
+      map.current!.on('click', layerId, handleStudentClick);
+      map.current!.on('mouseenter', layerId, handleMouseEnter);
+      map.current!.on('mouseleave', layerId, handleMouseLeave);
     };
 
     processStudentsData();
-  }, [debouncedStudents, isMapLoaded, geocodeStudentAddress]);
+    
+    const renderTime = performance.now() - startTime;
+    console.log(`👥 Marcadores de estudantes renderizados em ${renderTime.toFixed(2)}ms:`, debouncedStudents?.length);
+  }, [studentsGeoJSON, isMapLoaded, geocodeStudentAddress, debouncedStudents]);
+
+  // Memoização dos dados das escolas para otimizar performance
+  const schoolsGeoJSON = useMemo(() => {
+    if (!debouncedSchools?.length) return null;
+    
+    return {
+      type: 'FeatureCollection' as const,
+      features: debouncedSchools.map((school) => ({
+        type: 'Feature' as const,
+        properties: {
+          id: school.id,
+          name: school.name,
+          address: school.address
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: school.longitude && school.latitude ? [school.longitude, school.latitude] : [0, 0]
+        }
+      }))
+    };
+  }, [debouncedSchools]);
 
   // Criar marcadores de escolas usando símbolos do Mapbox com debounce
   useEffect(() => {
-    if (!map.current || !isMapLoaded || !debouncedSchools.length) return;
+    if (!map.current || !isMapLoaded || !schoolsGeoJSON) return;
     
-    const schools = debouncedSchools;
-
+    const startTime = performance.now();
     const sourceId = 'schools-source';
     const layerId = 'schools-layer';
     const labelsLayerId = 'schools-labels-layer';
 
     // Remover camadas e fonte existentes
-    if (map.current!.getLayer(labelsLayerId)) {
-      map.current!.removeLayer(labelsLayerId);
-    }
-    if (map.current!.getLayer(layerId)) {
-      map.current!.removeLayer(layerId);
-    }
+    const layersToRemove = [labelsLayerId, layerId];
+    layersToRemove.forEach(layer => {
+      if (map.current!.getLayer(layer)) {
+        map.current!.removeLayer(layer);
+      }
+    });
+    
     if (map.current!.getSource(sourceId)) {
       map.current!.removeSource(sourceId);
     }
@@ -650,7 +830,7 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
     const processSchoolsData = async () => {
       const schoolsWithCoords = [];
       
-      for (const school of schools) {
+      for (const school of debouncedSchools) {
         if (!school.address) continue;
         
         let coordinates: [number, number] | null = null;
@@ -684,46 +864,60 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
         features: schoolsWithCoords
       };
 
-      // Adicionar fonte de dados
-      map.current!.addSource(sourceId, {
-        type: 'geojson',
-        data: schoolsData
+      // Adicionar fonte de dados com otimizações e verificação de estilo carregado
+      executeWhenStyleLoaded(() => {
+        if (!map.current) return;
+        
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: schoolsData,
+          cluster: false,
+          tolerance: 0.375
+        });
+
+        // Adicionar camada de símbolos com melhor visibilidade
+        map.current.addLayer({
+          id: layerId,
+          type: 'symbol',
+          source: sourceId,
+          layout: {
+            'icon-image': 'school-icon',
+            'icon-size': 1.4, // Aumentar tamanho para melhor visibilidade
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+            'symbol-sort-key': ['get', 'id']
+          },
+          paint: {
+            'icon-opacity': 1.0
+          }
+        });
+
+        // Adicionar camada de labels com melhor destaque
+        map.current.addLayer({
+          id: labelsLayerId,
+          type: 'symbol',
+          source: sourceId,
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-offset': [0, 2.8],
+            'text-anchor': 'top',
+            'text-size': 16, // Aumentar tamanho para escolas
+            'text-allow-overlap': false,
+            'text-ignore-placement': false,
+            'text-max-width': 10,
+            'symbol-spacing': 300
+          },
+          paint: {
+            'text-color': '#065f46', // Verde mais escuro para melhor contraste
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 3 // Halo mais forte para escolas
+          }
+        });
       });
 
-      // Adicionar camada de símbolos
-      map.current!.addLayer({
-        id: layerId,
-        type: 'symbol',
-        source: sourceId,
-        layout: {
-          'icon-image': 'school-icon',
-          'icon-size': 1,
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true
-        }
-      });
-
-      // Adicionar camada de labels
-      map.current!.addLayer({
-        id: labelsLayerId,
-        type: 'symbol',
-        source: sourceId,
-        layout: {
-          'text-field': ['get', 'name'],
-          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-          'text-offset': [0, 2.5],
-          'text-anchor': 'top',
-          'text-size': 14
-        },
-        paint: {
-          'text-color': '#2d5016',
-          'text-halo-color': '#fff',
-          'text-halo-width': 2
-        }
-      });
-
-      // Adicionar evento de clique para popups
-      const handleSchoolClick = (e: any) => {
+      // Event handlers memoizados
+      const handleSchoolClick = useCallback((e: any) => {
         const features = map.current!.queryRenderedFeatures(e.point, {
           layers: [layerId]
         });
@@ -732,7 +926,7 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
           const feature = features[0];
           const { name, address } = feature.properties!;
           
-          new mapboxgl.Popup()
+          new mapboxgl.Popup({ closeOnClick: true, maxWidth: '300px' })
             .setLngLat(e.lngLat)
             .setHTML(`
               <div class="p-2">
@@ -742,19 +936,27 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
             `)
             .addTo(map.current!);
         }
-      };
+      }, []);
 
-      map.current!.on('click', layerId, handleSchoolClick);
-      map.current!.on('mouseenter', layerId, () => {
+      const handleMouseEnter = useCallback(() => {
         map.current!.getCanvas().style.cursor = 'pointer';
-      });
-      map.current!.on('mouseleave', layerId, () => {
+      }, []);
+
+      const handleMouseLeave = useCallback(() => {
         map.current!.getCanvas().style.cursor = '';
-      });
+      }, []);
+
+      // Adicionar event listeners
+      map.current!.on('click', layerId, handleSchoolClick);
+      map.current!.on('mouseenter', layerId, handleMouseEnter);
+      map.current!.on('mouseleave', layerId, handleMouseLeave);
     };
 
     processSchoolsData();
-   }, [debouncedSchools, isMapLoaded, geocodeSchoolAddress]);
+    
+    const renderTime = performance.now() - startTime;
+    console.log(`🏫 Marcadores de escolas renderizados em ${renderTime.toFixed(2)}ms:`, debouncedSchools?.length);
+   }, [schoolsGeoJSON, isMapLoaded, geocodeSchoolAddress, debouncedSchools]);
 
   // Calcular rota otimizada quando dados mudarem
   useEffect(() => {
@@ -863,79 +1065,83 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
       map.current.removeSource(waypointsId);
     }
 
-    // Adicionar rota otimizada
-    map.current.addSource(routeId, {
-      type: 'geojson',
-      data: {
-        type: 'Feature',
-        properties: {
-          routeType: 'optimized',
-          distance: optimizedRoute.distance,
-          duration: optimizedRoute.duration,
-          traffic: optimizedRoute.traffic
-        },
-        geometry: optimizedRoute.geometry
-      }
-    });
-
-    map.current.addLayer({
-      id: routeId,
-      type: 'line',
-      source: routeId,
-      layout: {
-        'line-join': 'round',
-        'line-cap': 'round',
-        'visibility': tracedRoute ? 'none' : 'visible'
-      },
-      paint: {
-        'line-color': '#3b82f6',
-        'line-width': 5,
-        'line-opacity': 0.8
-      }
-    });
-
-    // Adicionar waypoints como marcadores
-    const waypointsData = {
-      type: 'FeatureCollection' as const,
-      features: optimizedRoute.waypoints.map((waypoint, index) => ({
-        type: 'Feature' as const,
-        properties: {
-          name: waypoint.name,
-          type: waypoint.type,
-          order: index + 1
-        },
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [waypoint.longitude, waypoint.latitude]
+    // Adicionar rota otimizada com verificação de estilo carregado
+    executeWhenStyleLoaded(() => {
+      if (!map.current) return;
+      
+      map.current.addSource(routeId, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {
+            routeType: 'optimized',
+            distance: optimizedRoute.distance,
+            duration: optimizedRoute.duration,
+            traffic: optimizedRoute.traffic
+          },
+          geometry: optimizedRoute.geometry
         }
-      }))
-    };
+      });
 
-    map.current.addSource(waypointsId, {
-      type: 'geojson',
-      data: waypointsData
-    });
+      map.current.addLayer({
+        id: routeId,
+        type: 'line',
+        source: routeId,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+          'visibility': tracedRoute ? 'none' : 'visible'
+        },
+        paint: {
+          'line-color': '#3b82f6',
+          'line-width': 5,
+          'line-opacity': 0.8
+        }
+      });
 
-    map.current.addLayer({
-      id: waypointsId,
-      type: 'circle',
-      source: waypointsId,
-      paint: {
-        'circle-radius': [
-          'case',
-          ['==', ['get', 'type'], 'driver'], 8,
-          ['==', ['get', 'type'], 'school'], 10,
-          6
-        ],
-        'circle-color': [
-          'case',
-          ['==', ['get', 'type'], 'driver'], '#ef4444',
-          ['==', ['get', 'type'], 'school'], '#22c55e',
-          '#3b82f6'
-        ],
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': 2
-      }
+      // Adicionar waypoints como marcadores
+      const waypointsData = {
+        type: 'FeatureCollection' as const,
+        features: optimizedRoute.waypoints.map((waypoint, index) => ({
+          type: 'Feature' as const,
+          properties: {
+            name: waypoint.name,
+            type: waypoint.type,
+            order: index + 1
+          },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [waypoint.longitude, waypoint.latitude]
+          }
+        }))
+      };
+
+      map.current.addSource(waypointsId, {
+        type: 'geojson',
+        data: waypointsData
+      });
+
+      map.current.addLayer({
+        id: waypointsId,
+        type: 'circle',
+        source: waypointsId,
+        paint: {
+          'circle-radius': [
+            'case',
+            ['==', ['get', 'type'], 'driver'], 8,
+            ['==', ['get', 'type'], 'school'], 10,
+            6
+          ],
+          'circle-color': [
+            'case',
+            ['==', ['get', 'type'], 'driver'], '#ef4444',
+            ['==', ['get', 'type'], 'school'], '#22c55e',
+            '#3b82f6'
+          ],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2
+        }
+      });
     });
 
     // Ajustar visualização para mostrar toda a rota
@@ -982,92 +1188,104 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
       map.current.removeSource(endMarkerId);
     }
 
-    // Adicionar rota traçada
-    map.current.addSource(tracedRouteId, {
-      type: 'geojson',
-      data: {
-        type: 'Feature',
-        properties: {
-          distance: tracedRoute.totalDistance,
-          duration: tracedRoute.estimatedDuration
-        },
-        geometry: tracedRoute.geometry
-      }
-    });
-
-    // Adicionar linha da rota traçada (cor diferente da rota planejada)
-    map.current.addLayer({
-      id: tracedRouteId,
-      type: 'line',
-      source: tracedRouteId,
-      layout: {
-        'line-join': 'round',
-        'line-cap': 'round'
-      },
-      paint: {
-        'line-color': '#10b981', // Verde para rota percorrida
-        'line-width': 5,
-        'line-opacity': 0.95
-      }
-    }, map.current.getLayer('optimized-route') ? 'optimized-route' : undefined); // Adicionar acima da rota planejada se existir
-
-    // Adicionar marcador de início (primeiro ponto)
-    if (tracedRoute.startPoint) {
-      map.current.addSource(startMarkerId, {
+    // Adicionar rota traçada com verificação de estilo carregado
+    executeWhenStyleLoaded(() => {
+      if (!map.current) return;
+      
+      map.current.addSource(tracedRouteId, {
         type: 'geojson',
         data: {
           type: 'Feature',
           properties: {
-            title: 'Início da Rota',
-            timestamp: tracedRoute.startPoint.timestamp
+            distance: tracedRoute.totalDistance,
+            duration: tracedRoute.estimatedDuration
           },
-          geometry: {
-            type: 'Point',
-            coordinates: [tracedRoute.startPoint.longitude, tracedRoute.startPoint.latitude]
-          }
+          geometry: tracedRoute.geometry
         }
       });
 
+      // Adicionar linha da rota traçada (cor diferente da rota planejada)
       map.current.addLayer({
-        id: startMarkerId,
-        type: 'circle',
-        source: startMarkerId,
+        id: tracedRouteId,
+        type: 'line',
+        source: tracedRouteId,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
         paint: {
-          'circle-radius': 8,
-          'circle-color': '#22c55e',
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 3
+          'line-color': '#10b981', // Verde para rota percorrida
+          'line-width': 5,
+          'line-opacity': 0.95
         }
+      }, map.current.getLayer('optimized-route') ? 'optimized-route' : undefined); // Adicionar acima da rota planejada se existir
+    });
+
+    // Adicionar marcador de início (primeiro ponto) com verificação de estilo carregado
+    if (tracedRoute.startPoint) {
+      executeWhenStyleLoaded(() => {
+        if (!map.current) return;
+        
+        map.current.addSource(startMarkerId, {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {
+              title: 'Início da Rota',
+              timestamp: tracedRoute.startPoint.timestamp
+            },
+            geometry: {
+              type: 'Point',
+              coordinates: [tracedRoute.startPoint.longitude, tracedRoute.startPoint.latitude]
+            }
+          }
+        });
+
+        map.current.addLayer({
+          id: startMarkerId,
+          type: 'circle',
+          source: startMarkerId,
+          paint: {
+            'circle-radius': 8,
+            'circle-color': '#22c55e',
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 3
+          }
+        });
       });
     }
 
-    // Adicionar marcador de posição atual (último ponto)
+    // Adicionar marcador de posição atual (último ponto) com verificação de estilo carregado
     if (tracedRoute.currentPoint) {
-      map.current.addSource(endMarkerId, {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          properties: {
-            title: 'Posição Atual',
-            timestamp: tracedRoute.currentPoint.timestamp
-          },
-          geometry: {
-            type: 'Point',
-            coordinates: [tracedRoute.currentPoint.longitude, tracedRoute.currentPoint.latitude]
+      executeWhenStyleLoaded(() => {
+        if (!map.current) return;
+        
+        map.current.addSource(endMarkerId, {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {
+              title: 'Posição Atual',
+              timestamp: tracedRoute.currentPoint.timestamp
+            },
+            geometry: {
+              type: 'Point',
+              coordinates: [tracedRoute.currentPoint.longitude, tracedRoute.currentPoint.latitude]
+            }
           }
-        }
-      });
+        });
 
-      map.current.addLayer({
-        id: endMarkerId,
-        type: 'circle',
-        source: endMarkerId,
-        paint: {
-          'circle-radius': 10,
-          'circle-color': '#ef4444',
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 3
-        }
+        map.current.addLayer({
+          id: endMarkerId,
+          type: 'circle',
+          source: endMarkerId,
+          paint: {
+            'circle-radius': 10,
+            'circle-color': '#ef4444',
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 3
+          }
+        });
       });
     }
 
@@ -1078,14 +1296,67 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
      });
    }, [tracedRoute, isMapLoaded]);
 
-  // Cleanup ao desmontar
+  // Cleanup ao desmontar - otimizado
   useEffect(() => {
     return () => {
+      console.log('🧹 Limpando recursos do mapa...');
+      
+      // Limpar marcadores
       if (driverMarker.current) {
         driverMarker.current.remove();
+        driverMarker.current = null;
       }
-      studentMarkers.current.forEach(marker => marker.remove());
-      schoolMarkers.current.forEach(marker => marker.remove());
+      
+      studentMarkers.current.forEach(marker => {
+        if (marker) marker.remove();
+      });
+      studentMarkers.current = [];
+      
+      schoolMarkers.current.forEach(marker => {
+        if (marker) marker.remove();
+      });
+      schoolMarkers.current = [];
+      
+      // Limpar layers e sources do mapa
+      if (map.current) {
+        const layersToRemove = [
+          'students-layer', 'students-labels', 'schools-layer', 'schools-labels',
+          'route-layer', 'traced-route-layer', 'route-start-marker', 'route-end-marker'
+        ];
+        
+        const sourcesToRemove = [
+          'students', 'schools', 'route', 'traced-route', 
+          'route-start-marker', 'route-end-marker'
+        ];
+        
+        layersToRemove.forEach(layerId => {
+          if (map.current?.getLayer(layerId)) {
+            map.current.removeLayer(layerId);
+          }
+        });
+        
+        sourcesToRemove.forEach(sourceId => {
+          if (map.current?.getSource(sourceId)) {
+            map.current.removeSource(sourceId);
+          }
+        });
+        
+        // Remover event listeners
+        map.current.off('load');
+        map.current.off('render');
+        map.current.off('click', 'students-layer');
+        map.current.off('mouseenter', 'students-layer');
+        map.current.off('mouseleave', 'students-layer');
+        map.current.off('click', 'schools-layer');
+        map.current.off('mouseenter', 'schools-layer');
+        map.current.off('mouseleave', 'schools-layer');
+        
+        // Destruir o mapa
+        map.current.remove();
+        map.current = null;
+      }
+      
+      console.log('✅ Recursos do mapa limpos com sucesso');
     };
   }, []);
 
@@ -1259,12 +1530,24 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
         </div>
       )}
       
-      {/* Indicador de captura de dados */}
+      {/* Indicador de captura de dados - melhorado */}
       {isCapturing && !hideOverlays && (
-        <div className="absolute bottom-4 right-4 bg-green-100 border border-green-300 rounded-lg p-2 z-10">
+        <div className="absolute bottom-4 right-4 bg-green-100 border border-green-300 rounded-lg p-2 z-10 shadow-sm">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-green-700">Rastreando em tempo real</span>
+            <span className="text-sm text-green-700 font-medium">Rastreando em tempo real</span>
+          </div>
+        </div>
+      )}
+      
+      {/* Overlay de performance - apenas em desenvolvimento */}
+      {process.env.NODE_ENV === 'development' && performanceMetrics && !hideOverlays && (
+        <div className="absolute bottom-20 right-4 bg-gray-900 text-white rounded-lg p-3 text-xs z-10 opacity-75">
+          <div className="font-mono space-y-1">
+            <div>FPS: {performanceMetrics.fps}</div>
+            <div>Renders: {performanceMetrics.renderCount}</div>
+            <div>Última atualização: {performanceMetrics.lastUpdate}ms</div>
+            <div>Memória: {performanceMetrics.memoryUsage}MB</div>
           </div>
         </div>
       )}
