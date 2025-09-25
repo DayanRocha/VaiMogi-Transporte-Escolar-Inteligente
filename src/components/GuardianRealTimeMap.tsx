@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Driver, Van, Student, Trip } from '@/types/driver';
-import { useRealtimeData } from '../hooks/useRealtimeData';
+import { useGuardianRealtimeData } from '../hooks/useGuardianRealtimeData';
 import { useRouteTracking } from '../hooks/useRouteTracking';
 import { useGuardianData } from '@/hooks/useGuardianData';
 import { useGeocoding } from '@/hooks/useGeocoding';
@@ -220,16 +220,16 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
     setLastRenderTime(now);
   }, 2000);
   
-  // Hooks para dados em tempo real
-  const { driverLocation, isCapturing } = useRealtimeData(driver.id);
+  // Hooks para dados em tempo real - usando hook otimizado para o painel do responsável
+  const { driverLocation, isCapturing } = useGuardianRealtimeData(driver.id);
   const { activeRoute, nextDestination } = useRouteTracking();
   const { schools } = useGuardianData();
   const { geocodeStudentAddress, geocodeSchoolAddress, isGeocoding, geocodingErrors } = useGeocoding();
   
-  // Aplicar debounce nas atualizações críticas
-  const debouncedDriverLocation = useDebounce(driverLocation, 500); // 500ms
-  const debouncedStudents = useDebounce(students, 800); // 800ms
-  const debouncedSchools = useDebounce(schools, 800); // 800ms
+  // Aplicar debounce nas atualizações críticas com intervalos maiores para melhor performance
+  const debouncedDriverLocation = useDebounce(driverLocation, 3000); // 3 segundos (aumentado)
+  const debouncedStudents = useDebounce(students, 5000); // 5 segundos (aumentado)
+  const debouncedSchools = useDebounce(schools, 5000); // 5 segundos (aumentado)
   
   // Hook para rastreamento automático de rota
   const { 
@@ -248,6 +248,22 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
       minute: '2-digit'
     });
   }, []);
+
+  // Função para centralizar manualmente no motorista
+  const centerOnDriver = useCallback(() => {
+    if (!map.current || !debouncedDriverLocation) return;
+    
+    const { latitude, longitude } = debouncedDriverLocation;
+    
+    map.current.easeTo({
+      center: [longitude, latitude],
+      zoom: 16,
+      duration: 1500,
+      essential: true
+    });
+    
+    console.log('🎯 [Guardian] Mapa centralizado manualmente no motorista');
+  }, [debouncedDriverLocation]);
 
   // Função helper para verificar se o estilo do mapa está carregado
   const isMapStyleLoaded = useCallback(() => {
@@ -329,7 +345,7 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
     };
   }, [driverLocation, updatePerformanceMetrics]); // Reinicializar quando a localização do motorista estiver disponível
 
-  // Centralizar mapa na localização do motorista com animação suave e controle inteligente (otimizada)
+  // Centralizar mapa na localização do motorista com controle inteligente e menos atualizações
   useEffect(() => {
     if (!map.current || !isMapLoaded || !debouncedDriverLocation) return;
 
@@ -348,8 +364,8 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
         Math.pow(currentCenter.lat - latitude, 2)
       );
       
-      // Só move se a distância for significativa (> 0.001 graus ≈ 100m)
-      if (distance < 0.001) {
+      // Aumentar threshold para reduzir movimentos desnecessários (> 0.003 graus ≈ 300m)
+      if (distance < 0.003) {
         return;
       }
     }
@@ -362,48 +378,45 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
         duration: 1000,
         essential: true
       });
+      console.log('🎯 Primeira centralização do mapa na localização do motorista');
     } else {
-      // Atualizações subsequentes - movimento mais suave
+      // Atualizações subsequentes - movimento mais suave e menos frequente
       map.current.easeTo({
         center: [longitude, latitude],
-        duration: 1500,
+        duration: 2000, // Aumentado para 2 segundos
         essential: true,
         easing: (t) => t * (2 - t) // Easing otimizado
       });
+      console.log('🔄 Mapa recentrado na nova localização do motorista');
     }
 
-    console.log('🎯 Mapa centralizado na localização atual do motorista:', {
-      lat: debouncedDriverLocation.latitude,
-      lng: debouncedDriverLocation.longitude,
-      timestamp: debouncedDriverLocation.timestamp
-    });
     updatePerformanceMetrics();
-  }, [debouncedDriverLocation, isMapLoaded, updatePerformanceMetrics]); // Executar apenas quando a localização estiver disponível
+  }, [debouncedDriverLocation, isMapLoaded, updatePerformanceMetrics]);
 
-  // Integrar serviço de localização em tempo real com otimizações de performance
+  // Integrar serviço de localização em tempo real com otimizações de performance para o painel do responsável
   useEffect(() => {
     if (!activeTrip || !debouncedDriverLocation) return;
 
     let lastUpdateTime = 0;
-    const UPDATE_THROTTLE = 3000; // Throttle de 3 segundos para otimizar performance
+    const UPDATE_THROTTLE = 10000; // Throttle de 10 segundos para o painel do responsável
     
-    // Configurar callback para atualizações de localização
+    // Configurar callback para atualizações de localização (menos frequente)
     const handleLocationUpdate = (location: DriverLocation) => {
       const now = Date.now();
       
-      // Throttle das atualizações para melhor performance
+      // Throttle das atualizações para melhor performance no painel do responsável
       if (now - lastUpdateTime < UPDATE_THROTTLE) {
         return;
       }
       lastUpdateTime = now;
       
-      console.log('📍 Localização do motorista atualizada:', location);
+      console.log('📍 [Guardian] Localização do motorista atualizada:', location);
       
       // Atualizar marcador do motorista se existir
       if (driverMarker.current) {
         driverMarker.current.setLngLat([location.longitude, location.latitude]);
         
-        // Atualizar popup com informações atualizadas
+        // Atualizar popup com informações atualizadas (menos frequente)
         const popup = driverMarker.current.getPopup();
         if (popup) {
           popup.setHTML(`
@@ -420,18 +433,11 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
         }
       }
       
-      // Centralizar mapa na nova posição do motorista de forma suave
-      if (map.current) {
-        map.current.easeTo({
-          center: [location.longitude, location.latitude],
-          duration: 2000,
-          essential: true,
-          easing: (t) => t * (2 - t) // Easing suave
-        });
-      }
+      // NÃO centralizar automaticamente o mapa para evitar interrupções na visualização do responsável
+      // O responsável pode mover o mapa livremente sem ser interrompido
     };
 
-    // Configurar rastreamento em tempo real
+    // Configurar rastreamento em tempo real com configurações otimizadas
     locationService.startTracking({
       driverId: activeTrip.driverId,
       routeId: activeTrip.id,
@@ -439,7 +445,7 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
       school: activeTrip.route?.school || null
     });
 
-    // Atualizar localização do motorista no serviço
+    // Atualizar localização do motorista no serviço (menos frequente)
     locationService.updateDriverLocation({
       driverId: activeTrip.driverId,
       latitude: debouncedDriverLocation.latitude,
@@ -1530,6 +1536,20 @@ export const GuardianRealTimeMap: React.FC<GuardianRealTimeMapProps> = ({
         </div>
       )}
       
+      {/* Botão para centralizar no motorista */}
+      {debouncedDriverLocation && !hideOverlays && (
+        <div className="absolute bottom-20 left-4 z-20">
+          <button
+            onClick={centerOnDriver}
+            className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all duration-200 hover:scale-105 flex items-center gap-2"
+            title="Centralizar no motorista"
+          >
+            <Navigation className="w-5 h-5" />
+            <span className="text-sm font-medium hidden sm:block">Localizar Motorista</span>
+          </button>
+        </div>
+      )}
+
       {/* Indicador de captura de dados - melhorado */}
       {isCapturing && !hideOverlays && (
         <div className="absolute bottom-4 right-4 bg-green-100 border border-green-300 rounded-lg p-2 z-10 shadow-sm">

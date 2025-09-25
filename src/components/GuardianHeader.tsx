@@ -1,10 +1,7 @@
-import { Menu, Bell, LogOut, Volume2 } from 'lucide-react';
+import { Menu, Bell, LogOut } from 'lucide-react';
 import { Guardian } from '@/types/driver';
 import { GuardianNotification } from '@/hooks/useGuardianData';
 import { RealTimeIndicator } from '@/components/RealTimeIndicator';
-
-import { audioService } from '@/services/audioService';
-import { useState } from 'react';
 
 interface GuardianHeaderProps {
   guardian: Guardian;
@@ -65,7 +62,6 @@ export const GuardianHeader = ({
           )}
         </button>
         
-        
         <button
           onClick={onLogout}
           className="p-2 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
@@ -75,8 +71,6 @@ export const GuardianHeader = ({
           <LogOut className="w-6 h-6 text-gray-600 hover:text-red-600" />
         </button>
       </div>
-
-
     </header>
   );
 };

@@ -487,6 +487,12 @@ class RouteTrackingService {
   updateDriverLocation(location: RouteLocation) {
     const route = this.getActiveRoute();
     if (route && route.isActive) {
+      // Validar se lat e lng existem antes de usar toFixed
+      if (typeof location.lat !== 'number' || typeof location.lng !== 'number') {
+        console.error('❌ Localização inválida - lat ou lng não são números:', location);
+        return;
+      }
+      
       route.currentLocation = location;
       this.persistRoute(route);
       this.notifyListeners(route);

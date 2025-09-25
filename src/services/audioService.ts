@@ -85,68 +85,45 @@ class AudioService {
 
   // Sons específicos para cada tipo de notificação - sempre usa buzina
   async playNotificationSound(type: NotificationSoundType) {
-    console.log(`🔊 DEBUG: ===== INÍCIO playNotificationSound =====`);
-    console.log(`🔊 DEBUG: Tipo de notificação: ${type}`);
-    console.log('🔊 DEBUG: AudioService habilitado:', this.isEnabled);
-    console.log('🔊 DEBUG: Deve usar arquivos de áudio:', this.useAudioFiles);
-    console.log('🔊 DEBUG: AudioContext estado:', this.audioContext?.state);
-    console.log('🔊 DEBUG: Permissão de áudio no localStorage:', localStorage.getItem('notificationSoundsEnabled'));
-    
     if (!this.isEnabled) {
-      console.log('🔇 DEBUG: Sons desabilitados, pulando reprodução');
       return;
     }
 
-    // Verificar se o usuário já interagiu com a página
-    console.log('🔊 DEBUG: Verificando interação do usuário...');
     try {
       // Tentar criar um contexto de áudio para verificar permissões
       if (!this.audioContext) {
-        console.log('🔊 DEBUG: Criando AudioContext...');
         await this.initAudioContext();
       }
-      console.log('🔊 DEBUG: AudioContext criado/verificado, estado:', this.audioContext?.state);
-    } catch (error) {
-      console.error('🔊 DEBUG: Erro ao inicializar AudioContext:', error);
-    }
 
-    // Tentar reproduzir buzina primeiro
-    console.log('🔊 DEBUG: Tentando reproduzir arquivo de áudio...');
-    const playResult = await this.playAudioFile(type);
-    console.log('🔊 DEBUG: Resultado da reprodução:', playResult);
-    
-    if (playResult) {
-      console.log('🔊 DEBUG: ===== Arquivo de áudio reproduzido com SUCESSO =====');
-      return; // Buzina reproduzida com sucesso
-    }
+      // Tentar reproduzir buzina primeiro
+      const playResult = await this.playAudioFile(type);
+      
+      if (playResult) {
+        console.log('🔊 Buzina reproduzida com sucesso');
+        return; // Buzina reproduzida com sucesso
+      }
 
-    // Se a buzina não estiver carregada, tentar carregar e reproduzir
-    console.log('⚠️ DEBUG: Buzina não reproduzida, tentando carregar...');
-    try {
-      await this.loadAllAudioFiles();
-      console.log('🔊 DEBUG: Arquivos carregados, tentando reproduzir novamente...');
-    } catch (loadError) {
-      console.error('🔊 DEBUG: Erro ao carregar arquivos:', loadError);
-    }
-    
-    // Tentar reproduzir novamente após carregar
-    const retryResult = await this.playAudioFile(type);
-    console.log('🔊 DEBUG: Resultado da segunda tentativa:', retryResult);
-    
-    if (retryResult) {
-      console.log('🔊 DEBUG: ===== Arquivo reproduzido com SUCESSO na segunda tentativa =====');
-      return; // Buzina reproduzida com sucesso após carregamento
-    }
+      // Se a buzina não estiver carregada, tentar carregar e reproduzir
+      try {
+        await this.loadAllAudioFiles();
+      } catch (loadError) {
+        console.warn('⚠️ Erro ao carregar arquivos de áudio:', loadError);
+      }
+      
+      // Tentar reproduzir novamente após carregar
+      const retryResult = await this.playAudioFile(type);
+      
+      if (retryResult) {
+        console.log('🔊 Buzina reproduzida com sucesso na segunda tentativa');
+        return; // Buzina reproduzida com sucesso após carregamento
+      }
 
-    // Último recurso: som padrão simples
-    console.warn('❌ DEBUG: Não foi possível reproduzir buzina, usando tom padrão');
-    try {
+      // Último recurso: som padrão simples
+      console.warn('⚠️ Usando tom padrão como fallback');
       await this.generateTone(800, 0.3);
-      console.log('🔊 DEBUG: Tom padrão reproduzido com sucesso');
-    } catch (toneError) {
-      console.error('❌ DEBUG: Erro ao reproduzir tom padrão:', toneError);
+    } catch (error) {
+      console.error('❌ Erro ao reproduzir som de notificação:', error);
     }
-    console.log(`🔊 DEBUG: ===== FIM playNotificationSound =====`);
   }
 
   // Ativar/desativar sons
@@ -186,12 +163,41 @@ class AudioService {
   // Solicitar permissão de áudio (deve ser chamado após interação do usuário)
   async requestAudioPermission(): Promise<boolean> {
     try {
+      // Inicializar contexto de áudio
       await this.initAudioContext();
+      
+      if (!this.audioContext) {
+        return false;
+      }
+      
+      // Tentar resumir o contexto se estiver suspenso
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+      }
+      
       // Tocar um som muito baixo para ativar o contexto
-      await this.generateTone(440, 0.01, 0.01);
+      await this.generateTone(440, 0.05, 0.1);
+      
+      // Tentar carregar e reproduzir um pequeno trecho da buzina
+      try {
+        const testAudio = new Audio('/sounds/buzina-van.mp3');
+        testAudio.volume = 0.1;
+        testAudio.currentTime = 0;
+        
+        const playPromise = testAudio.play();
+        if (playPromise) {
+          await playPromise;
+          // Parar rapidamente
+          testAudio.pause();
+          testAudio.currentTime = 0;
+        }
+      } catch (testError) {
+        console.warn('⚠️ Teste de buzina falhou, mas contexto pode estar ativo');
+      }
+      
       return true;
     } catch (error) {
-      console.warn('❌ Permissão de áudio negada:', error);
+      console.error('❌ Erro ao solicitar permissão de áudio:', error);
       return false;
     }
   }
@@ -266,80 +272,128 @@ class AudioService {
     console.log(`🔊 DEBUG: playAudioFile chamado para: ${type}`);
     
     try {
-      // Verificar se o usuário já interagiu com a página
-      console.log('🔊 DEBUG: Verificando permissões de áudio...');
+      // Verificar se o contexto de áudio está disponível
+      if (!this.audioContext) {
+        console.log('🔊 DEBUG: AudioContext não disponível, tentando inicializar...');
+        await this.initAudioContext();
+      }
       
       // Sempre criar uma nova instância da buzina para permitir sobreposição
       console.log('🔊 DEBUG: Criando nova instância de Audio...');
-      const audioClone = new Audio('/sounds/buzina-van.mp3');
-      console.log('🔊 DEBUG: Audio criado, configurando propriedades...');
+      const audioClone = new Audio();
       
-      audioClone.volume = 0.8; // Volume alto para notificações
+      // Configurar propriedades antes de definir src
+      audioClone.volume = 1.0; // Volume máximo
       audioClone.playbackRate = 1.0;
-      audioClone.currentTime = 0;
+      audioClone.preload = 'auto';
+      audioClone.crossOrigin = 'anonymous';
       
-      // Timeout para detectar arquivos corrompidos ou vazios
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout: arquivo pode estar corrompido')), 3000);
-      });
+      console.log('🔊 DEBUG: Configurando src do áudio...');
+      audioClone.src = '/sounds/buzina-van.mp3';
       
-      // Promise para carregamento do áudio
+      // Promise para carregamento do áudio com timeout mais longo
       const loadPromise = new Promise<void>((resolve, reject) => {
+        let resolved = false;
+        
         const onCanPlay = () => {
+          if (resolved) return;
+          resolved = true;
           console.log('🔊 DEBUG: Áudio carregado e pronto para reprodução');
-          audioClone.removeEventListener('canplay', onCanPlay);
-          audioClone.removeEventListener('error', onError);
+          cleanup();
+          resolve();
+        };
+        
+        const onLoadedData = () => {
+          if (resolved) return;
+          resolved = true;
+          console.log('🔊 DEBUG: Dados do áudio carregados');
+          cleanup();
           resolve();
         };
         
         const onError = (e: any) => {
+          if (resolved) return;
+          resolved = true;
           console.error('🔊 DEBUG: Erro ao carregar áudio:', e);
+          cleanup();
+          reject(new Error(`Erro ao carregar arquivo de áudio: ${e.message || 'Desconhecido'}`));
+        };
+        
+        const cleanup = () => {
           audioClone.removeEventListener('canplay', onCanPlay);
+          audioClone.removeEventListener('loadeddata', onLoadedData);
           audioClone.removeEventListener('error', onError);
-          reject(new Error('Erro ao carregar arquivo de áudio'));
         };
         
         audioClone.addEventListener('canplay', onCanPlay);
+        audioClone.addEventListener('loadeddata', onLoadedData);
         audioClone.addEventListener('error', onError);
+        
+        // Timeout mais longo para carregamento
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            cleanup();
+            reject(new Error('Timeout: arquivo demorou muito para carregar'));
+          }
+        }, 5000);
+        
         audioClone.load();
       });
       
-      // Aguardar carregamento com timeout
-      await Promise.race([loadPromise, timeoutPromise]);
+      // Aguardar carregamento
+      await loadPromise;
       
       console.log(`🎵 DEBUG: Tentando reproduzir buzina-van.mp3 para ${type}...`);
       console.log('🔊 DEBUG: Caminho do arquivo:', audioClone.src);
       console.log('🔊 DEBUG: Estado do áudio - readyState:', audioClone.readyState);
       console.log('🔊 DEBUG: Estado do áudio - networkState:', audioClone.networkState);
+      console.log('🔊 DEBUG: Volume:', audioClone.volume);
+      console.log('🔊 DEBUG: Duration:', audioClone.duration);
       
-      // Tentar reproduzir
-      const playPromise = audioClone.play();
-      await playPromise;
+      // Tentar reproduzir com retry
+      let playAttempts = 0;
+      const maxAttempts = 3;
       
-      console.log(`✅ DEBUG: Buzina reproduzida com sucesso para: ${type}`);
-      return true;
+      while (playAttempts < maxAttempts) {
+        try {
+          playAttempts++;
+          console.log(`🔊 DEBUG: Tentativa de reprodução ${playAttempts}/${maxAttempts}`);
+          
+          const playPromise = audioClone.play();
+          if (playPromise) {
+            await playPromise;
+          }
+          
+          console.log(`✅ DEBUG: Buzina reproduzida com sucesso para: ${type} (tentativa ${playAttempts})`);
+          return true;
+        } catch (playError) {
+          console.error(`❌ DEBUG: Erro na tentativa ${playAttempts}:`, playError);
+          
+          if (playAttempts === maxAttempts) {
+            throw playError;
+          }
+          
+          // Aguardar um pouco antes da próxima tentativa
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      
+      return false;
     } catch (error) {
       console.error(`❌ DEBUG: Erro detalhado ao reproduzir buzina para ${type}:`, error);
       console.error('❌ DEBUG: Tipo do erro:', error.name);
       console.error('❌ DEBUG: Mensagem do erro:', error.message);
       
-      // Se for erro de interação do usuário, tentar solicitar permissão
-      if (error.name === 'NotAllowedError' || error.message.includes('user activation')) {
-        console.warn('⚠️ DEBUG: Erro de permissão de áudio - usuário precisa interagir primeiro');
-        console.warn('⚠️ DEBUG: Tentando solicitar permissão...');
-        
+      // Tentar fallback com Web Audio API
+      if (this.audioContext && this.audioContext.state === 'running') {
+        console.log('🔊 DEBUG: Tentando fallback com Web Audio API...');
         try {
-          await this.requestAudioPermission();
-          console.log('✅ DEBUG: Permissão de áudio obtida, tentando novamente...');
-          
-          // Tentar novamente após obter permissão
-          const audioRetry = new Audio('/sounds/buzina-van.mp3');
-          audioRetry.volume = 0.8;
-          await audioRetry.play();
-          console.log(`✅ DEBUG: Buzina reproduzida com sucesso após permissão para: ${type}`);
+          await this.generateTone(800, 0.5, 0.8);
+          console.log('✅ DEBUG: Fallback com Web Audio API funcionou');
           return true;
-        } catch (retryError) {
-          console.error('❌ DEBUG: Falha mesmo após solicitar permissão:', retryError);
+        } catch (fallbackError) {
+          console.error('❌ DEBUG: Fallback também falhou:', fallbackError);
         }
       }
       

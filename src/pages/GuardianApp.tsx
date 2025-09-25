@@ -112,19 +112,42 @@ export const GuardianApp = () => {
     // Inicializar limpeza de notificações
     initNotificationCleanup();
     
-    // Tentar solicitar permissão de áudio após primeira interação
-    const handleFirstInteraction = async () => {
-      await audioService.requestAudioPermission();
-      document.removeEventListener('click', handleFirstInteraction);
-      document.removeEventListener('touchstart', handleFirstInteraction);
+    // Configurar múltiplos listeners para garantir que o áudio seja habilitado
+    const handleFirstInteraction = async (eventType: string) => {
+      try {
+        const hasPermission = await audioService.requestAudioPermission();
+        
+        // Testar reprodução de áudio
+        await audioService.testSound();
+        
+        // Remover todos os listeners após primeira interação bem-sucedida
+        document.removeEventListener('click', handleClick);
+        document.removeEventListener('touchstart', handleTouch);
+        document.removeEventListener('keydown', handleKeydown);
+        document.removeEventListener('scroll', handleScroll);
+        
+        console.log('✅ Áudio habilitado com sucesso');
+      } catch (error) {
+        console.warn('⚠️ Erro ao habilitar áudio:', error);
+      }
     };
 
-    document.addEventListener('click', handleFirstInteraction);
-    document.addEventListener('touchstart', handleFirstInteraction);
+    const handleClick = () => handleFirstInteraction('click');
+    const handleTouch = () => handleFirstInteraction('touchstart');
+    const handleKeydown = () => handleFirstInteraction('keydown');
+    const handleScroll = () => handleFirstInteraction('scroll');
+
+    // Adicionar múltiplos tipos de listeners para capturar qualquer interação
+    document.addEventListener('click', handleClick, { once: true });
+    document.addEventListener('touchstart', handleTouch, { once: true });
+    document.addEventListener('keydown', handleKeydown, { once: true });
+    document.addEventListener('scroll', handleScroll, { once: true });
 
     return () => {
-      document.removeEventListener('click', handleFirstInteraction);
-      document.removeEventListener('touchstart', handleFirstInteraction);
+      document.removeEventListener('click', handleClick);
+      document.removeEventListener('touchstart', handleTouch);
+      document.removeEventListener('keydown', handleKeydown);
+      document.removeEventListener('scroll', handleScroll);
     };
   }, []);
 

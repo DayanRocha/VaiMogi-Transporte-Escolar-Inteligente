@@ -32,15 +32,15 @@ export const useRealtimeData = (): UseRealtimeDataReturn => {
   const { hasActiveRoute, activeRoute } = useRouteTracking();
   const listenerIdRef = useRef<string | null>(null);
   
-  // Integrar com hook de rastreamento do veículo
+  // Integrar com hook de rastreamento do veículo com configurações otimizadas para o painel do responsável
   const vehicleTracking = useVehicleTracking({
     autoStart: false, // Será iniciado manualmente
     trackingOptions: {
       enableHighAccuracy: true,
-      updateInterval: 5000, // 5 segundos (reduzido de 3s)
-      minDistanceThreshold: 10, // 10 metros (aumentado de 5m)
-      timeout: 15000,
-      maximumAge: 10000,
+      updateInterval: 15000, // 15 segundos (aumentado para reduzir atualizações constantes)
+      minDistanceThreshold: 50, // 50 metros (aumentado para evitar micro-movimentos)
+      timeout: 20000,
+      maximumAge: 30000, // Aumentado para 30 segundos
       maxSpeedThreshold: 120
     }
   });

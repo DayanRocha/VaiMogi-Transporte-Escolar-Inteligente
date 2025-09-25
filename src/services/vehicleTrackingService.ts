@@ -477,12 +477,10 @@ class VehicleTrackingService {
   private updateRealtimeService(position: VehiclePosition): void {
     try {
       const routeLocation: RouteLocation = {
-        latitude: position.latitude,
-        longitude: position.longitude,
+        lat: position.latitude,
+        lng: position.longitude,
         accuracy: position.accuracy,
-        timestamp: new Date(position.timestamp).toISOString(),
-        speed: position.speed,
-        heading: position.heading
+        timestamp: new Date(position.timestamp).toISOString()
       };
       
       realtimeDataService.updateDriverLocation(routeLocation);
