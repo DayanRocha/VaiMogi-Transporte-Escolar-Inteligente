@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import GuardianRealTimeMap from '@/components/GuardianRealTimeMap';
+import GuardianLeafletMap from '@/components/GuardianLeafletMap';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { GuardianHeader } from '@/components/GuardianHeader';
 import { GuardianMenuModal } from '@/components/GuardianMenuModal';
@@ -194,14 +194,14 @@ export const GuardianApp = () => {
       />
 
       {/* Main Map View */}
-      <div className="h-[calc(100vh-64px)] relative">
+      <div className="h-[calc(100vh-64px)] relative z-0">
         <ErrorBoundary>
-          <GuardianRealTimeMap
+          <GuardianLeafletMap
             driver={driver}
             van={van}
             students={students}
             activeTrip={activeTrip}
-            hideOverlays={true}
+            hideOverlays={false}
           />
         </ErrorBoundary>
       </div>

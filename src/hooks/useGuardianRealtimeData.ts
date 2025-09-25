@@ -156,12 +156,20 @@ export const useGuardianRealtimeData = (driverId: string): UseGuardianRealtimeDa
 
   // Efeito para gerenciar captura baseada na rota ativa
   useEffect(() => {
+    console.log('🔍 [Guardian] Verificando estado da rota:', {
+      hasActiveRoute,
+      activeRoute: !!activeRoute,
+      isCapturing
+    });
+    
     if (hasActiveRoute && activeRoute && !isCapturing) {
       console.log('🎯 [Guardian] Rota ativa detectada, iniciando captura automática...');
       startCapture();
     } else if (!hasActiveRoute && isCapturing) {
       console.log('🛑 [Guardian] Rota inativa detectada, parando captura...');
       stopCapture();
+    } else if (!hasActiveRoute && !activeRoute) {
+      console.log('ℹ️ [Guardian] Nenhuma rota ativa encontrada');
     }
   }, [hasActiveRoute, activeRoute, isCapturing, startCapture, stopCapture]);
 
