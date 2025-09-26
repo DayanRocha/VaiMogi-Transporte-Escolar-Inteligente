@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import GuardianLeafletMap from '@/components/GuardianLeafletMap';
+import { GuardianMapboxMap } from '../components/GuardianMapboxMap';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { GuardianHeader } from '@/components/GuardianHeader';
 import { GuardianMenuModal } from '@/components/GuardianMenuModal';
@@ -20,6 +20,8 @@ export const GuardianApp = () => {
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  // Estado para qualidade do mapa
+  const [mapQuality, setMapQuality] = useState<'high' | 'medium' | 'low'>('medium');
   const { 
     guardian, 
     driver, 
@@ -34,7 +36,35 @@ export const GuardianApp = () => {
   } = useGuardianData();
 
   // Hook para rastreamento de rota
-  const { hasActiveRoute, activeRoute } = useRouteTracking();
+  const { hasActiveRoute, activeRoute, driverLocation: routeDriverLocation } = useRouteTracking();
+
+  // Mapear localização do motorista (lat/lng -> latitude/longitude) para o componente do mapa
+  const mappedDriverLocation = routeDriverLocation
+    ? {
+        latitude: routeDriverLocation.lat,
+        longitude: routeDriverLocation.lng,
+        timestamp: routeDriverLocation.timestamp,
+      }
+    : undefined;
+
+  // Mapear rota ativa para estrutura consumida pelo GuardianMapboxMap
+  const mappedActiveRoute = activeRoute
+    ? {
+        id: activeRoute.id,
+        name: activeRoute.driverName || 'Rota ativa',
+        coordinates: [
+          // Incluir localização atual do motorista primeiro, se existir
+          ...(activeRoute.currentLocation
+            ? [[activeRoute.currentLocation.lng, activeRoute.currentLocation.lat] as [number, number]]
+            : []),
+          // Em seguida, pontos dos estudantes (quando disponíveis)
+          ...activeRoute.studentPickups
+            .filter(s => typeof s.lat === 'number' && typeof s.lng === 'number')
+            .map(s => [s.lng as number, s.lat as number] as [number, number])
+        ],
+        status: activeRoute.isActive ? 'active' : activeRoute.endTime ? 'completed' : 'inactive' as 'active' | 'inactive' | 'completed'
+      }
+    : undefined;
 
   // Notificações em tempo real
   const {
@@ -196,12 +226,13 @@ export const GuardianApp = () => {
       {/* Main Map View */}
       <div className="h-[calc(100vh-64px)] relative z-0">
         <ErrorBoundary>
-          <GuardianLeafletMap
-            driver={driver}
-            van={van}
+          <GuardianMapboxMap
+            driverLocation={mappedDriverLocation}
+            activeRoute={mappedActiveRoute}
             students={students}
-            activeTrip={activeTrip}
-            hideOverlays={false}
+            schools={schools}
+            mapQuality={mapQuality}
+            onMapQualityChange={setMapQuality}
           />
         </ErrorBoundary>
       </div>

@@ -45,6 +45,8 @@ export interface Student {
   schoolId: string;
   status: 'waiting' | 'embarked' | 'at_school';
   dropoffLocation?: 'home' | 'school'; // Where to drop off the student (home or school)
+  latitude?: number; // Coordenada de latitude geocodificada
+  longitude?: number; // Coordenada de longitude geocodificada
 }
 
 export interface Guardian {
@@ -61,6 +63,8 @@ export interface School {
   id: string;
   name: string;
   address: string;
+  latitude?: number; // Coordenada de latitude geocodificada
+  longitude?: number; // Coordenada de longitude geocodificada
 }
 
 export interface Trip {
