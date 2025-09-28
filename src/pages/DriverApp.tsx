@@ -24,7 +24,7 @@ import { GuardianStatusManager } from '@/components/GuardianStatusManager';
 import { SchoolsList } from '@/components/SchoolsList';
 import { SchoolRegistration } from '@/components/SchoolRegistration';
 import { ActiveTrip } from '@/components/ActiveTrip';
-import { BottomNavigation } from '@/components/BottomNavigation';
+
 import { useDriverData } from '@/hooks/useDriverData';
 import { realTimeNotificationService } from '@/services/realTimeNotificationService';
 import { Route, Student, Guardian, School as SchoolType } from '@/types/driver';
@@ -946,7 +946,7 @@ export default function DriverApp() {
         url="/"
         type="website"
       />
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="min-h-screen bg-neutral-50 flex flex-col">
         <main className="flex-1">
           {renderContent()}
         </main>

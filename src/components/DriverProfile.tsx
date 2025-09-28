@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Camera, Edit, Save, X, ArrowLeft, LogOut, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { useToast } from '@/components/ui/use-toast';
 import { Driver } from '@/types/driver';
 
 interface DriverProfileProps {
@@ -16,12 +16,39 @@ interface DriverProfileProps {
 export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProfileProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(driver);
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const { toast } = useToast();
 
   const handleSave = () => {
-    onUpdate(formData);
-    setIsEditing(false);
-    setShowSuccessDialog(true);
+    console.log('🔄 Salvando dados do motorista:', formData);
+    
+    try {
+      onUpdate(formData);
+      setIsEditing(false);
+      
+      // Múltiplas formas de mostrar sucesso
+      setShowSuccessMessage(true);
+      
+      // Toast
+      toast({
+        title: "✅ Sucesso!",
+        description: "Perfil do motorista salvo com sucesso!",
+        duration: 3000,
+      });
+      
+      // Alert como fallback
+      alert("✅ Perfil do motorista salvo com sucesso!");
+      
+      // Esconder mensagem após 3 segundos
+      setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 3000);
+      
+      console.log('✅ Todas as notificações enviadas');
+    } catch (error) {
+      console.error('❌ Erro ao salvar:', error);
+      alert("❌ Erro ao salvar o perfil do motorista!");
+    }
   };
 
   const handleCancel = () => {
@@ -38,7 +65,11 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
         setFormData(prev => ({ ...prev, photo: photoUrl }));
         if (!isEditing) {
           onUpdate({ photo: photoUrl });
-          setShowSuccessDialog(true);
+          toast({
+            title: "✅ Sucesso!",
+            description: "Foto do perfil atualizada com sucesso!",
+            duration: 3000,
+          });
         }
       };
       reader.readAsDataURL(file);
@@ -138,7 +169,29 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
           </div>
         </div>
 
+        {/* Mensagem de Sucesso Visual */}
+        {showSuccessMessage && (
+          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2 animate-fade-in">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <span className="text-green-800 font-medium">✅ Perfil do motorista salvo com sucesso!</span>
+          </div>
+        )}
 
+        {/* Botão de Teste Toast (remover depois) */}
+        <Button
+          onClick={() => {
+            console.log('🧪 Testando toast...');
+            toast({
+              title: "🧪 Teste",
+              description: "Este é um teste do toast!",
+              duration: 5000,
+            });
+          }}
+          variant="outline"
+          className="w-full mt-2"
+        >
+          🧪 Testar Toast
+        </Button>
 
         {/* Action Buttons */}
         <div className="mt-6 flex gap-3">
@@ -172,28 +225,7 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
         </div>
       </div>
 
-      {/* Diálogo de Confirmação */}
-      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-green-600">
-              <CheckCircle className="w-5 h-5" />
-              Sucesso!
-            </DialogTitle>
-            <DialogDescription>
-              Alterações foram salvas com sucesso!
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end mt-4">
-            <Button 
-              onClick={() => setShowSuccessDialog(false)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              OK
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 };

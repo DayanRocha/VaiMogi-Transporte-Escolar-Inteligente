@@ -186,20 +186,20 @@ export const LandingPage = () => {
         <div className="absolute inset-0 bg-white/40 z-10"></div>
 
         {/* Content */}
-        <div className="relative z-20 max-w-7xl mx-auto text-center px-4 sm:px-6 lg:px-8 mt-[110px]">
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-gray-900 mb-6 drop-shadow-2xl">
+        <div className="relative z-20 container-responsive text-center mt-[110px] animate-fade-in">
+          <h1 className="text-display text-neutral-900 mb-6 drop-shadow-2xl">
             <span className="drop-shadow-lg">Transporte Escolar</span>
             <span className="text-primary block drop-shadow-lg">Inteligente e Seguro</span>
           </h1>
-          <p className="text-2xl md:text-3xl text-gray-800 mb-8 max-w-4xl mx-auto font-semibold drop-shadow-lg">
+          <p className="text-body-lg md:text-2xl text-neutral-800 mb-8 max-w-4xl mx-auto font-semibold drop-shadow-lg leading-relaxed">
             Conecte motoristas, responsáveis e escolas em uma plataforma completa
             de gestão de transporte escolar com rastreamento em tempo real.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up">
             <Button
               size="lg"
               onClick={() => navigate('/login')}
-              className="bg-primary hover:bg-primary/90 text-white px-8 py-3 text-lg shadow-2xl"
+              className="px-8 py-4 text-lg shadow-2xl"
             >
               Começar Agora
               <ArrowRight className="w-5 h-5 ml-2" />
@@ -208,7 +208,7 @@ export const LandingPage = () => {
               size="lg"
               variant="outline"
               onClick={() => navigate('/login', { state: { openGuardianDialog: true } })}
-              className="border-primary text-primary hover:bg-primary hover:text-white px-8 py-3 text-lg shadow-2xl bg-white/90"
+              className="px-8 py-4 text-lg shadow-2xl bg-white/90"
             >
               <Eye className="w-5 h-5 mr-2" />
               Acompanhar Transporte
@@ -218,17 +218,17 @@ export const LandingPage = () => {
       </section>
 
       {/* Features Section */}
-      <section className="py-24 bg-gradient-to-b from-white to-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-20">
+      <section className="py-24 bg-gradient-to-b from-white to-neutral-50">
+        <div className="container-responsive">
+          <div className="text-center mb-20 animate-fade-in">
             <div className="inline-flex items-center px-4 py-2 bg-primary/10 rounded-full text-primary font-semibold text-sm mb-4">
               ✨ Funcionalidades Principais
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 leading-tight">
+            <h2 className="text-h1 text-neutral-900 mb-6 leading-tight">
               Tecnologia que <span className="text-primary">Transforma</span>
               <br />o Transporte Escolar
             </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-body-lg text-neutral-600 max-w-3xl mx-auto leading-relaxed">
               Descubra como o VaiMogi revoluciona o transporte escolar com soluções inteligentes,
               seguras e fáceis de usar para toda a comunidade escolar
             </p>
@@ -238,19 +238,20 @@ export const LandingPage = () => {
             {features.map((feature, index) => (
               <div
                 key={index}
-                className="group relative bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3 border border-gray-100 overflow-hidden backdrop-blur-sm"
+                className="card-interactive group overflow-hidden backdrop-blur-sm animate-slide-up"
+                style={{ animationDelay: `${index * 0.1}s` }}
               >
                 {/* Background gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-gray-100/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-neutral-50/50 to-neutral-100/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
                 {/* Decorative elements */}
-                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-gray-100/40 to-gray-200/20 rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-125 transition-transform duration-700"></div>
-                <div className="absolute bottom-0 left-0 w-16 h-16 bg-gradient-to-tr from-gray-100/30 to-gray-200/10 rounded-tr-full transform -translate-x-4 translate-y-4 group-hover:scale-110 transition-transform duration-500"></div>
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-neutral-100/40 to-neutral-200/20 rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-125 transition-transform duration-700"></div>
+                <div className="absolute bottom-0 left-0 w-16 h-16 bg-gradient-to-tr from-neutral-100/30 to-neutral-200/10 rounded-tr-full transform -translate-x-4 translate-y-4 group-hover:scale-110 transition-transform duration-500"></div>
 
                 {/* Subtle shine effect */}
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 transform -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out"></div>
 
-                <div className="relative z-10 flex flex-col items-center text-center">
+                <div className="relative z-10 flex flex-col items-center text-center p-8">
                   {/* Icon container with enhanced styling */}
                   <div className={`mb-6 p-4 bg-gradient-to-br ${feature.gradient} rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-500 group-hover:scale-110 group-hover:rotate-3 relative`}>
                     <div className="text-white transition-all duration-300">
@@ -261,12 +262,12 @@ export const LandingPage = () => {
                   </div>
 
                   {/* Title with enhanced typography */}
-                  <h3 className="text-xl font-bold text-gray-900 mb-4 group-hover:text-gray-800 transition-all duration-300 leading-tight">
+                  <h3 className="text-h3 text-neutral-900 mb-4 group-hover:text-neutral-800 transition-all duration-300 leading-tight">
                     {feature.title}
                   </h3>
 
                   {/* Description with better spacing */}
-                  <p className="text-gray-600 leading-relaxed group-hover:text-gray-700 transition-colors duration-300 text-sm">
+                  <p className="text-body-sm text-neutral-600 leading-relaxed group-hover:text-neutral-700 transition-colors duration-300">
                     {feature.description}
                   </p>
 
@@ -274,7 +275,7 @@ export const LandingPage = () => {
                   <div className={`mt-6 w-16 h-1 bg-gradient-to-r ${feature.gradient} rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500 transform scale-x-0 group-hover:scale-x-100`}></div>
 
                   {/* Subtle pulse effect on hover */}
-                  <div className="absolute inset-0 rounded-2xl border-2 border-transparent group-hover:border-gray-100/50 transition-all duration-300"></div>
+                  <div className="absolute inset-0 rounded-2xl border-2 border-transparent group-hover:border-neutral-100/50 transition-all duration-300"></div>
                 </div>
               </div>
             ))}
@@ -283,20 +284,20 @@ export const LandingPage = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-primary">
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+      <section className="py-20 bg-gradient-to-r from-orange-500 to-orange-600">
+        <div className="container-responsive text-center animate-fade-in">
+          <h2 className="text-h1 text-white mb-6">
             Pronto para Transformar o Transporte Escolar?
           </h2>
-          <p className="text-xl text-orange-100 mb-8">
+          <p className="text-body-lg text-orange-100 mb-8">
             Junte-se a centenas de motoristas e responsáveis que já confiam no VaiMogi
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up">
             <Button
               size="lg"
               variant="secondary"
               onClick={() => navigate('/register')}
-              className="bg-white text-primary hover:bg-gray-100 px-8 py-3 text-lg"
+              className="bg-white text-primary hover:bg-neutral-100 px-8 py-4 text-lg shadow-xl"
             >
               Cadastrar como Motorista
             </Button>
@@ -304,7 +305,7 @@ export const LandingPage = () => {
               size="lg"
               variant="outline"
               onClick={() => navigate('/login', { state: { openGuardianDialog: true } })}
-              className="border-2 border-white text-white bg-transparent hover:bg-white hover:text-primary px-8 py-3 text-lg font-semibold"
+              className="border-2 border-white text-white bg-transparent hover:bg-white hover:text-primary px-8 py-4 text-lg font-semibold shadow-xl"
             >
               Sou Responsável
             </Button>

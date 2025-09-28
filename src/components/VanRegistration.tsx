@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Camera, Save, Truck, ArrowLeft, LogOut, CheckCircle, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { useToast } from '@/components/ui/use-toast';
 import { Van } from '@/types/driver';
 
 interface VanRegistrationProps {
@@ -24,15 +24,42 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
     photo: '',
     drivingPermitDocument: ''
   });
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [isDataSaved, setIsDataSaved] = useState(false);
   const [isEditingEnabled, setIsEditingEnabled] = useState(true);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const { toast } = useToast();
 
   const handleSave = () => {
-    onUpdate(formData);
-    setIsDataSaved(true);
-    setIsEditingEnabled(false);
-    setShowSuccessDialog(true);
+    console.log('🔄 Salvando dados da van:', formData);
+    
+    try {
+      onUpdate(formData);
+      setIsDataSaved(true);
+      setIsEditingEnabled(false);
+      
+      // Múltiplas formas de mostrar sucesso
+      setShowSuccessMessage(true);
+      
+      // Toast
+      toast({
+        title: "✅ Sucesso!",
+        description: "Dados da van salvos com sucesso!",
+        duration: 3000,
+      });
+      
+      // Alert como fallback
+      alert("✅ Dados da van salvos com sucesso!");
+      
+      // Esconder mensagem após 3 segundos
+      setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 3000);
+      
+      console.log('✅ Todas as notificações enviadas');
+    } catch (error) {
+      console.error('❌ Erro ao salvar:', error);
+      alert("❌ Erro ao salvar os dados da van!");
+    }
   };
 
   const handleEnableEditing = () => {
@@ -224,6 +251,30 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
           </div>
         </div>
 
+        {/* Mensagem de Sucesso Visual */}
+        {showSuccessMessage && (
+          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2 animate-fade-in">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <span className="text-green-800 font-medium">✅ Dados da van salvos com sucesso!</span>
+          </div>
+        )}
+
+        {/* Botão de Teste Toast (remover depois) */}
+        <Button
+          onClick={() => {
+            console.log('🧪 Testando toast...');
+            toast({
+              title: "🧪 Teste",
+              description: "Este é um teste do toast!",
+              duration: 5000,
+            });
+          }}
+          variant="outline"
+          className="w-full mt-2"
+        >
+          🧪 Testar Toast
+        </Button>
+
         {isEditingEnabled ? (
           <Button
             onClick={handleSave}
@@ -243,28 +294,7 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
         )}
       </div>
 
-      {/* Diálogo de Confirmação */}
-      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-green-600">
-              <CheckCircle className="w-5 h-5" />
-              Sucesso!
-            </DialogTitle>
-            <DialogDescription>
-              Os dados da van foram salvos com sucesso!
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end mt-4">
-            <Button 
-              onClick={() => setShowSuccessDialog(false)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              OK
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 };

@@ -3,41 +3,64 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* VaiMogi Design System - Sistema de cores, tipografia e componentes modernos */
 
 @layer base {
   :root {
+    /* === PALETA DE CORES APRIMORADA === */
+    
+    /* Cores Primárias - Transporte Escolar */
+    --primary: 30 100% 50%;              /* #FF8C00 - Laranja vibrante */
+    --primary-dark: 25 100% 45%;         /* #E67E00 - Hover states */
+    --primary-light: 35 100% 85%;        /* #FFE4B3 - Backgrounds */
+    --primary-foreground: 0 0% 100%;     /* Branco para contraste */
+    
+    /* Cores Secundárias - Segurança e Confiança */
+    --secondary-blue: 210 100% 50%;      /* #0080FF - Azul confiança */
+    --secondary-green: 142 76% 36%;      /* #16A34A - Verde sucesso */
+    --secondary-red: 0 84% 60%;          /* #EF4444 - Vermelho alerta */
+    
+    /* Cores Neutras - Legibilidade Otimizada */
+    --neutral-900: 222 84% 5%;           /* #0A0A0B - Texto principal */
+    --neutral-800: 215 25% 15%;          /* #1F2937 - Texto escuro */
+    --neutral-700: 215 25% 27%;          /* #374151 - Texto secundário */
+    --neutral-600: 220 9% 46%;           /* #6B7280 - Texto terciário */
+    --neutral-500: 220 13% 69%;          /* #9CA3AF - Texto desabilitado */
+    --neutral-400: 220 14% 83%;          /* #D1D5DB - Bordas suaves */
+    --neutral-300: 220 13% 91%;          /* #E5E7EB - Bordas */
+    --neutral-200: 220 14% 96%;          /* #F3F4F6 - Backgrounds */
+    --neutral-100: 220 14% 98%;          /* #F9FAFB - Superfícies */
+    --neutral-50: 0 0% 99%;              /* #FEFEFE - Branco quase puro */
+    
+    /* Cores Funcionais com Melhor Contraste */
+    --success: 142 76% 36%;              /* #16A34A - Verde confirmação */
+    --success-light: 142 76% 90%;        /* Background verde claro */
+    --warning: 38 92% 50%;               /* #F59E0B - Amarelo aviso */
+    --warning-light: 38 92% 90%;         /* Background amarelo claro */
+    --error: 0 84% 60%;                  /* #EF4444 - Vermelho erro */
+    --error-light: 0 84% 90%;            /* Background vermelho claro */
+    --info: 210 100% 50%;                /* #0080FF - Azul informação */
+    --info-light: 210 100% 90%;          /* Background azul claro */
+    
+    /* Variáveis do sistema existentes atualizadas */
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
+    --foreground: var(--neutral-900);
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
+    --card-foreground: var(--neutral-900);
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 30 100% 50%;
-    --primary-foreground: 0 0% 100%;
-
+    --popover-foreground: var(--neutral-900);
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-
     --accent: 30 100% 96.1%;
     --accent-foreground: 30 100% 50%;
-
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 30 100% 50%;
-
-    --radius: 0.5rem;
+    --border: var(--neutral-300);
+    --input: var(--neutral-300);
+    --ring: var(--primary);
+    --radius: 0.75rem;                   /* 12px - Mais moderno */
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -50,33 +73,24 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 30 100% 50%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
+    /* Modo escuro otimizado */
+    --background: var(--neutral-900);
+    --foreground: var(--neutral-100);
+    --card: var(--neutral-800);
+    --card-foreground: var(--neutral-100);
+    --popover: var(--neutral-800);
+    --popover-foreground: var(--neutral-100);
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: var(--neutral-700);
+    --input: var(--neutral-700);
+    --ring: var(--primary-light);
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -233,5 +247,421 @@ All colors MUST be HSL.
   .mapboxgl-ctrl-group button {
     width: 32px;
     height: 32px;
+  }
+}@l
+ayer base {
+  /* === TIPOGRAFIA OTIMIZADA === */
+  
+  html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  /* Hierarquia de Títulos */
+  .text-display {
+    @apply text-5xl md:text-6xl lg:text-7xl font-black leading-none tracking-tight;
+  }
+  
+  .text-h1 {
+    @apply text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-tight;
+  }
+  
+  .text-h2 {
+    @apply text-2xl md:text-3xl font-semibold leading-tight;
+  }
+  
+  .text-h3 {
+    @apply text-xl md:text-2xl font-semibold leading-snug;
+  }
+  
+  .text-h4 {
+    @apply text-lg md:text-xl font-medium leading-snug;
+  }
+
+  /* Texto Corpo */
+  .text-body-lg {
+    @apply text-lg leading-relaxed;
+  }
+  
+  .text-body {
+    @apply text-base leading-normal;
+  }
+  
+  .text-body-sm {
+    @apply text-sm leading-normal;
+  }
+  
+  .text-caption {
+    @apply text-xs font-medium uppercase tracking-wider;
+  }
+
+  /* === OTIMIZAÇÕES MOBILE === */
+  
+  @media (max-width: 768px) {
+    html {
+      font-size: 14px;
+    }
+    
+    body {
+      font-size: 1rem;
+    }
+  }
+
+  /* Touch targets otimizados */
+  button, [role="button"], input[type="submit"], input[type="button"] {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Focus styles melhorados para acessibilidade */
+  :focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Inputs otimizados para mobile */
+  input, textarea, select {
+    font-size: 16px; /* Previne zoom no iOS */
+  }
+
+  @media (max-width: 768px) {
+    input, textarea, select {
+      font-size: 16px;
+    }
+  }
+}
+
+@layer components {
+  /* === SISTEMA DE BOTÕES APRIMORADO === */
+  
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 
+           bg-gradient-to-r from-orange-500 to-orange-600 
+           text-white font-semibold rounded-xl
+           hover:from-orange-600 hover:to-orange-700 hover:shadow-lg hover:scale-105
+           active:scale-95 transition-all duration-200 ease-out
+           focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+  }
+  
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3
+           bg-white text-orange-600 font-semibold rounded-xl border-2 border-orange-500
+           hover:bg-orange-500 hover:text-white hover:shadow-lg hover:scale-105
+           active:scale-95 transition-all duration-200 ease-out
+           focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:ring-offset-2;
+  }
+  
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2
+           text-neutral-700 font-medium rounded-lg
+           hover:bg-neutral-100 hover:text-neutral-900 hover:scale-105
+           active:scale-95 transition-all duration-200 ease-out
+           focus:outline-none focus:ring-2 focus:ring-neutral-500/50;
+  }
+  
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3
+           bg-red-500 text-white font-semibold rounded-xl
+           hover:bg-red-600 hover:shadow-lg hover:scale-105
+           active:scale-95 transition-all duration-200 ease-out
+           focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:ring-offset-2;
+  }
+
+  /* Tamanhos de botão */
+  .btn-sm {
+    @apply px-3 py-2 text-sm h-9;
+  }
+  
+  .btn-md {
+    @apply px-4 py-3 text-base h-11;
+  }
+  
+  .btn-lg {
+    @apply px-6 py-4 text-lg h-14;
+  }
+
+  /* === SISTEMA DE CARDS MODERNO === */
+  
+  .card {
+    @apply bg-white rounded-2xl border border-neutral-200 shadow-sm
+           transition-all duration-300 ease-out;
+  }
+  
+  .card-interactive {
+    @apply card cursor-pointer;
+  }
+  
+  .card-interactive:hover {
+    @apply shadow-xl -translate-y-1;
+  }
+  
+  .card-header {
+    @apply p-6 border-b border-neutral-100;
+  }
+  
+  .card-content {
+    @apply p-6;
+  }
+  
+  .card-footer {
+    @apply p-6 pt-0 flex items-center justify-between;
+  }
+
+  /* === SISTEMA DE NAVEGAÇÃO === */
+  
+  .nav-bottom {
+    @apply fixed bottom-0 left-0 right-0 
+           bg-white/95 backdrop-blur-xl border-t border-neutral-200 
+           px-4 py-2 z-50 shadow-2xl;
+  }
+  
+  .nav-item {
+    @apply flex flex-col items-center gap-1 px-3 py-2 rounded-2xl
+           transition-all duration-300 ease-out relative
+           min-h-[60px] min-w-[60px] touch-manipulation;
+  }
+  
+  .nav-item-active {
+    @apply text-orange-600 bg-orange-50 scale-105 shadow-lg;
+  }
+  
+  .nav-item-inactive {
+    @apply text-neutral-600;
+  }
+  
+  .nav-item-inactive:hover {
+    @apply text-orange-600 bg-neutral-50 scale-105;
+  }
+
+  /* === ESTADOS DE LOADING === */
+  
+  .loading-spinner {
+    @apply w-6 h-6 border-2 border-neutral-200 border-t-orange-500 rounded-full animate-spin;
+  }
+  
+  .skeleton {
+    @apply bg-neutral-200 animate-pulse rounded;
+  }
+  
+  .skeleton-text {
+    @apply skeleton h-4 w-full mb-2;
+  }
+  
+  .skeleton-title {
+    @apply skeleton h-6 w-3/4 mb-4;
+  }
+
+  /* === SISTEMA DE NOTIFICAÇÕES === */
+  
+  .notification-success {
+    @apply bg-green-50 border border-green-200 text-green-800 p-4 rounded-xl;
+  }
+  
+  .notification-warning {
+    @apply bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-xl;
+  }
+  
+  .notification-error {
+    @apply bg-red-50 border border-red-200 text-red-800 p-4 rounded-xl;
+  }
+  
+  .notification-info {
+    @apply bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl;
+  }
+
+  /* === FORMULÁRIOS OTIMIZADOS === */
+  
+  .form-input {
+    @apply w-full px-4 py-3 border border-neutral-300 rounded-xl
+           focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20
+           transition-all duration-200 ease-out
+           placeholder:text-neutral-500;
+  }
+  
+  .form-label {
+    @apply block text-sm font-medium text-neutral-700 mb-2;
+  }
+  
+  .form-error {
+    @apply text-sm text-red-600 mt-1;
+  }
+  
+  .form-help {
+    @apply text-sm text-neutral-600 mt-1;
+  }
+
+  /* === UTILITÁRIOS DE ESPAÇAMENTO === */
+  
+  .space-xs { @apply gap-1; }      /* 4px */
+  .space-sm { @apply gap-2; }      /* 8px */
+  .space-md { @apply gap-3; }      /* 12px */
+  .space-lg { @apply gap-4; }      /* 16px */
+  .space-xl { @apply gap-6; }      /* 24px */
+  .space-2xl { @apply gap-8; }     /* 32px */
+  .space-3xl { @apply gap-12; }    /* 48px */
+
+  /* === ANIMAÇÕES SUAVES === */
+  
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes slideUp {
+    from { 
+      opacity: 0; 
+      transform: translateY(20px); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translateY(0); 
+    }
+  }
+  
+  @keyframes scaleIn {
+    from { 
+      opacity: 0; 
+      transform: scale(0.95); 
+    }
+    to { 
+      opacity: 1; 
+      transform: scale(1); 
+    }
+  }
+
+  /* === RESPONSIVIDADE APRIMORADA === */
+  
+  .container-responsive {
+    @apply w-full mx-auto px-4;
+  }
+  
+  @media (min-width: 640px) {
+    .container-responsive {
+      @apply max-w-2xl px-6;
+    }
+  }
+  
+  @media (min-width: 768px) {
+    .container-responsive {
+      @apply max-w-4xl px-8;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .container-responsive {
+      @apply max-w-6xl;
+    }
+  }
+  
+  @media (min-width: 1280px) {
+    .container-responsive {
+      @apply max-w-7xl;
+    }
+  }
+
+  /* === ACESSIBILIDADE === */
+  
+  .sr-only {
+    @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0;
+  }
+  
+  .focus-ring:focus {
+    @apply outline-none ring-2 ring-orange-500/50 ring-offset-2;
+  }
+}
+
+/* === CUSTOMIZAÇÕES ESPECÍFICAS DO MAPBOX === */
+.mapbox-map {
+  width: 100%;
+  height: 100%;
+  border-radius: 1rem; /* Bordas arredondadas modernas */
+}
+
+.mapboxgl-popup-content {
+  @apply p-4 rounded-xl shadow-xl border-0;
+  background: linear-gradient(135deg, #FF8C00 0%, #FF6B35 100%);
+  color: white;
+}
+
+.mapboxgl-popup-tip {
+  border-top-color: #FF8C00;
+}
+
+.mapboxgl-ctrl-group {
+  @apply rounded-xl shadow-lg border-0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+}
+
+.mapboxgl-ctrl-group button {
+  @apply rounded-lg transition-all duration-200;
+}
+
+.mapboxgl-ctrl-group button:hover {
+  @apply bg-orange-50 text-orange-600 scale-105;
+}
+
+/* === OTIMIZAÇÕES DE PERFORMANCE === */
+
+/* Reduzir repaint em animações */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Otimizar scroll em listas longas */
+.scroll-optimized {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Reduzir layout shifts */
+.aspect-ratio-16-9 {
+  aspect-ratio: 16 / 9;
+}
+
+.aspect-ratio-1-1 {
+  aspect-ratio: 1 / 1;
+}
+
+/* === PRINT STYLES === */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+  
+  * {
+    color: black !important;
+    background: white !important;
   }
 }
