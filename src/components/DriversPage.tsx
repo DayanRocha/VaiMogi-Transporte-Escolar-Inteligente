@@ -67,50 +67,54 @@ export const DriversPage = ({
         </button>
       </div>
 
-      {/* Top Icons - Always visible */}
+      {/* Top Icons - Modern glass buttons */}
       <div className="flex justify-center gap-6 px-4 mb-8">
-        <button 
-          className={`w-16 h-16 rounded-xl flex items-center justify-center hover:bg-white/30 transition-colors ${
-            activeTopButton === 'clients' ? 'bg-white/40 shadow-lg' : 'bg-white/20'
+        <button
+          aria-label="Responsáveis"
+          className={`w-16 h-16 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20 shadow-sm transition-all duration-200 bg-white/15 hover:bg-white/25 hover:shadow-lg hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-500 ${
+            activeTopButton === 'clients' ? 'bg-white/35 shadow-xl ring-2 ring-white/40' : ''
           }`}
           onClick={onClientsClick}
         >
-          <Users className="w-8 h-8 text-white" />
+          <Users className="w-8 h-8 text-white drop-shadow" />
         </button>
-        <button 
-          className={`w-16 h-16 rounded-xl flex items-center justify-center hover:bg-white/30 transition-colors ${
-            activeTopButton === 'drivers' ? 'bg-white/40 shadow-lg' : 'bg-white/20'
+        <button
+          aria-label="Motoristas"
+          className={`w-16 h-16 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20 shadow-sm transition-all duration-200 bg-white/15 hover:bg-white/25 hover:shadow-lg hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-500 ${
+            activeTopButton === 'drivers' ? 'bg-white/35 shadow-xl ring-2 ring-white/40' : ''
           }`}
           onClick={onDriversClick}
         >
-          <Truck className="w-8 h-8 text-white" />
+          <Truck className="w-8 h-8 text-white drop-shadow" />
         </button>
-        <button 
-          className={`w-16 h-16 rounded-xl flex items-center justify-center hover:bg-white/30 transition-colors relative ${
-            activeTopButton === 'trip' ? 'bg-white/40 shadow-lg' : 'bg-white/20'
+        <button
+          aria-label="Rotas"
+          className={`relative w-16 h-16 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20 shadow-sm transition-all duration-200 bg-white/15 hover:bg-white/25 hover:shadow-lg hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-500 ${
+            activeTopButton === 'trip' ? 'bg-white/35 shadow-xl ring-2 ring-white/40' : ''
           }`}
           onClick={onTripClick}
         >
-          <Navigation className="w-8 h-8 text-white" />
+          <Navigation className="w-8 h-8 text-white drop-shadow" />
           {hasActiveTrip && (
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center shadow">
               <div className="w-2 h-2 bg-white rounded-full"></div>
             </div>
           )}
         </button>
-        <button 
-          className={`w-16 h-16 rounded-xl flex items-center justify-center hover:bg-white/30 transition-colors ${
-            activeTopButton === 'settings' ? 'bg-white/40 shadow-lg' : 'bg-white/20'
+        <button
+          aria-label="Configurações"
+          className={`w-16 h-16 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20 shadow-sm transition-all duration-200 bg-white/15 hover:bg-white/25 hover:shadow-lg hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-500 ${
+            activeTopButton === 'settings' ? 'bg-white/35 shadow-xl ring-2 ring-white/40' : ''
           }`}
           onClick={onSettingsClick}
         >
-          <Settings className="w-8 h-8 text-white" />
+          <Settings className="w-8 h-8 text-white drop-shadow" />
         </button>
       </div>
 
       {/* Main Content */}
       <div className="px-4">
-        <h2 className="text-white text-lg font-medium mb-6">Sobre os motoristas</h2>
+        <h2 className="text-white text-lg font-medium mb-6">Motorista / Van / Rotas</h2>
         
         <div className="space-y-4">
           {menuItems.map((item) => (
