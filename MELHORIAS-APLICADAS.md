@@ -51,7 +51,7 @@
 - Animações suaves
 
 ### ✅ BottomNavigation (src/components/BottomNavigation.tsx)
-**EXCLUÍDO PIOIS JA TEM BOTÕES DE NAVEGAÇÃO NA PARTE SUPERIOR**
+**EXCLUÍDO POIS JA TEM BOTÕES DE NAVEGAÇÃO NA PARTE SUPERIOR**
 
 ### ✅ StudentsList (src/components/StudentsList.tsx)
 **Antes:**
