@@ -177,21 +177,7 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
           </div>
         )}
 
-        {/* Botão de Teste Toast (remover depois) */}
-        <Button
-          onClick={() => {
-            console.log('🧪 Testando toast...');
-            toast({
-              title: "🧪 Teste",
-              description: "Este é um teste do toast!",
-              duration: 5000,
-            });
-          }}
-          variant="outline"
-          className="w-full mt-2"
-        >
-          🧪 Testar Toast
-        </Button>
+        {/* Botão de Teste Toast removido conforme solicitado */}
 
         {/* Action Buttons */}
         <div className="mt-6 flex gap-3">

@@ -104,7 +104,7 @@ export const RoutesListPage = ({
         <div className="grid grid-cols-1 gap-4 mb-6">
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-lg flex items-center justify-center gap-2">
+              <Button className="text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg hover:scale-[1.02] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 transition-all duration-200 py-4 rounded-lg flex items-center justify-center gap-2">
                 <Plus className="w-5 h-5" />
                 Cadastrar rota
               </Button>
@@ -203,7 +203,7 @@ export const RoutesListPage = ({
           <Button
             onClick={onActiveRoutes}
             variant="outline"
-            className="border-green-500 text-green-600 hover:bg-green-50 py-4 rounded-lg flex items-center justify-center gap-2"
+            className="border-2 border-green-500 text-green-700 bg-white hover:bg-green-50 hover:text-green-800 hover:shadow-md hover:scale-[1.02] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300 transition-all duration-200 py-4 rounded-lg flex items-center justify-center gap-2"
           >
             <Play className="w-5 h-5" />
             Rotas em execução
@@ -212,7 +212,7 @@ export const RoutesListPage = ({
           <Button
             onClick={onRouteHistory}
             variant="outline"
-            className="border-gray-400 text-gray-600 hover:bg-gray-50 py-4 rounded-lg flex items-center justify-center gap-2"
+            className="border-2 border-gray-400 text-gray-700 bg-white hover:bg-gray-100 hover:text-gray-900 hover:shadow-sm active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 transition-all duration-200 py-4 rounded-lg flex items-center justify-center gap-2"
           >
             <History className="w-5 h-5" />
             Histórico de rotas

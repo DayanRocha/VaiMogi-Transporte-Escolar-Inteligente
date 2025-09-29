@@ -158,14 +158,14 @@ export const SavedRoutesList = ({
           <div className="p-4 space-y-3">
             <Button
               onClick={handleExecuteRoute}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-4 text-lg font-semibold"
+              className="w-full py-4 text-lg font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 hover:shadow-lg hover:scale-[1.02] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 transition-all duration-200"
             >
               Executar rota
             </Button>
 
             <Button
               onClick={handleDeleteRoute}
-              className="w-full bg-red-500 hover:bg-red-600 text-white py-4 text-lg font-semibold"
+              className="w-full py-4 text-lg font-semibold text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 hover:shadow-lg hover:scale-[1.02] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 transition-all duration-200"
             >
               Excluir rota
             </Button>
@@ -173,7 +173,7 @@ export const SavedRoutesList = ({
             <Button
               onClick={handleCancel}
               variant="outline"
-              className="w-full border-gray-400 text-gray-700 hover:bg-gray-50 py-4 text-lg font-semibold"
+              className="w-full py-4 text-lg font-semibold border-2 border-gray-300 text-gray-700 bg-white hover:bg-gray-100 hover:text-gray-900 hover:shadow-sm active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 transition-all duration-200"
             >
               Cancelar
             </Button>
