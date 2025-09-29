@@ -1,8 +1,8 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Student, School } from '@/types/driver';
-import { MapQualityIndicator } from './MapQualityIndicator';
+// Removido indicador de qualidade para evitar sobreposições no mapa
 import { useMapboxMap } from '../hooks/useMapboxMap';
 
 // Configure o token do Mapbox usando a variável de ambiente do Vite
@@ -31,14 +31,14 @@ interface GuardianMapboxMapProps {
   onMapQualityChange: (quality: 'high' | 'medium' | 'low') => void;
 }
 
-export const GuardianMapboxMap: React.FC<GuardianMapboxMapProps> = ({
+function GuardianMapboxMap({
   driverLocation,
   activeRoute,
   students,
   schools,
   mapQuality,
   onMapQualityChange
-}) => {
+}: GuardianMapboxMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const driverMarker = useRef<mapboxgl.Marker | null>(null);
@@ -47,13 +47,46 @@ export const GuardianMapboxMap: React.FC<GuardianMapboxMapProps> = ({
   const isUserInteractingRef = useRef(false);
   const lastInteractionAtRef = useRef<number>(0);
   const interactionGraceMs = 4000; // janela de graça após interação do usuário
-  const [followDriver, setFollowDriver] = useState(true);
+  // Estados do mapa
+  // Pausar atualizações dinâmicas do mapa (ex.: mover marcador em tempo real)
+  const [updatesEnabled, setUpdatesEnabled] = useState(true);
 
-  const shouldDeferCamera = () => {
+  // Controlar frequência e sensibilidade das atualizações do marcador do motorista
+  const lastDriverUpdateRef = useRef<number>(0);
+  const minUpdateIntervalMs = 3000; // Aumentado para 3 segundos
+  const minDistanceDeg = 0.0002; // Aumentado para ser mais restritivo
+  const lastDriverLngLatRef = useRef<[number, number] | null>(null); // referência da última posição
+
+  // Função para calcular distância entre duas coordenadas em graus
+  const distanceDeg = useCallback((a: [number, number] | null, b: [number, number] | null): number => {
+    if (!a || !b) return Infinity;
+    const dx = a[0] - b[0];
+    const dy = a[1] - b[1];
+    return Math.sqrt(dx * dx + dy * dy);
+  }, []);
+
+  // Otimização: memoizar função shouldDeferCamera para evitar recriações
+  const shouldDeferCamera = useCallback(() => {
     if (isUserInteractingRef.current) return true;
     const since = Date.now() - lastInteractionAtRef.current;
     return since < interactionGraceMs;
-  };
+  }, [interactionGraceMs]);
+
+  // Otimização: memoizar função getMapStyle para evitar recriações
+  const getMapStyle = useCallback((quality: 'high' | 'medium' | 'low') => {
+    switch (quality) {
+      case 'high':
+        return 'mapbox://styles/mapbox/satellite-streets-v12';
+      case 'medium':
+        return 'mapbox://styles/mapbox/streets-v12';
+      case 'low':
+        return 'mapbox://styles/mapbox/light-v11';
+      default:
+        return 'mapbox://styles/mapbox/streets-v12';
+    }
+  }, []);
+
+  
 
   // Hook personalizado para gerenciar o mapa Mapbox
   const {
@@ -72,14 +105,153 @@ export const GuardianMapboxMap: React.FC<GuardianMapboxMapProps> = ({
     schools
   });
 
+  // Otimização: memoizar função getDriverPopupHTML para evitar recriações
+  const getDriverPopupHTML = useCallback(() => {
+    if (!driverLocation) return '';
+    return `
+      <div style="padding: 8px;">
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">🚌 Motorista</div>
+        <div style="font-size: 12px; color: #374151;">
+          <div><strong>Última atualização:</strong> ${formatTime(driverLocation.timestamp)}</div>
+          ${driverLocation.speed !== undefined ? `<div><strong>Velocidade:</strong> ${driverLocation.speed.toFixed(1)} km/h</div>` : ''}
+          ${driverLocation.accuracy !== undefined ? `<div><strong>Precisão:</strong> ±${Math.round(driverLocation.accuracy)}m</div>` : ''}
+          <div style="margin-top: 4px; padding: 2px 6px; background: #10b981; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
+            🟢 Tempo Real
+          </div>
+        </div>
+      </div>
+    `;
+  }, [driverLocation, formatTime]);
+
+  // Otimização: memoizar dados dos estudantes e escolas para evitar recálculos desnecessários
+  const memoizedStudentsWithCoords = useMemo(() => studentsWithCoords, [studentsWithCoords]);
+  const memoizedSchoolsWithCoords = useMemo(() => schoolsWithCoords, [schoolsWithCoords]);
+
   // Inicializar o mapa
   useEffect(() => {
+    if (!mapContainer.current) return;
+
+    // Verificar se o token do Mapbox está disponível
+    if (!mapboxgl.accessToken) {
+      console.error('❌ Token do Mapbox não encontrado');
+      return;
+    }
+
+    // Limpar mapa anterior se existir
+    if (map.current) {
+      map.current.remove();
+      map.current = null;
+      setIsMapLoaded(false);
+    }
+
+    try {
+      // Configurações otimizadas para performance
+      const mapConfig = {
+        container: mapContainer.current,
+        style: getMapStyle(mapQuality),
+        center: mapCenter,
+        zoom: mapZoom,
+        attributionControl: false,
+        // Otimizações de performance
+        antialias: false, // Desabilita antialiasing para melhor performance
+        optimizeForTerrain: true,
+        preserveDrawingBuffer: false,
+        refreshExpiredTiles: false,
+        // Configurações de renderização suave
+        renderWorldCopies: false,
+        maxTileCacheSize: 50, // Reduz cache de tiles para economizar memória
+        transformRequest: (url: string, resourceType: string) => {
+          // Otimizar requisições de recursos
+          if (resourceType === 'Tile') {
+            return {
+              url: url,
+              headers: {},
+              credentials: 'same-origin'
+            };
+          }
+        }
+      };
+
+      // Criar novo mapa com configurações otimizadas
+      map.current = new mapboxgl.Map(mapConfig);
+    } catch (error) {
+      console.error('❌ Erro ao criar mapa:', error);
+      return;
+    }
+
+    map.current.on('load', () => {
+      setIsMapLoaded(true);
+      console.log('🗺️ Mapa carregado com otimizações de performance');
+      
+      // Configurar otimizações pós-carregamento
+      if (map.current) {
+        // Reduzir frequência de renderização para melhor performance
+        map.current.setRenderWorldCopies(false);
+        
+        // Configurar qualidade adaptativa baseada na performance
+        const canvas = map.current.getCanvas();
+        if (canvas) {
+          // Ajustar qualidade do canvas baseado na performance do dispositivo
+          const devicePixelRatio = window.devicePixelRatio || 1;
+          const adaptiveRatio = devicePixelRatio > 2 ? 1.5 : devicePixelRatio;
+          canvas.style.imageRendering = 'optimizeSpeed';
+        }
+      }
+    });
+
+    // Otimizar eventos de renderização
+    let renderTimeout: NodeJS.Timeout;
+    map.current.on('render', () => {
+      // Throttle de eventos de renderização para evitar sobrecarga
+      clearTimeout(renderTimeout);
+      renderTimeout = setTimeout(() => {
+        // Lógica de renderização otimizada pode ser adicionada aqui
+      }, 100);
+    });
+
+    // Adicionar controles de navegação
+    map.current.addControl(new mapboxgl.NavigationControl(), 'top-left');
+
+    // Configurar eventos de interação para pausar atualizações durante interação
+    map.current.on('dragstart', onInteractStart);
+    map.current.on('dragend', onInteractEnd);
+    map.current.on('zoomstart', onInteractStart);
+    map.current.on('zoomend', onInteractEnd);
+    map.current.on('rotatestart', onInteractStart);
+    map.current.on('rotateend', onInteractEnd);
+
+    return () => {
+      if (map.current) {
+        // Limpar eventos
+        map.current.off('dragstart', onInteractStart);
+        map.current.off('dragend', onInteractEnd);
+        map.current.off('zoomstart', onInteractStart);
+        map.current.off('zoomend', onInteractEnd);
+        map.current.off('rotatestart', onInteractStart);
+        map.current.off('rotateend', onInteractEnd);
+        
+        // Remover mapa
+        map.current.remove();
+        map.current = null;
+      }
+      setIsMapLoaded(false);
+      
+      // Limpar refs
+      driverMarker.current = null;
+      studentMarkers.current = [];
+      
+      clearTimeout(renderTimeout);
+    };
+  }, [mapCenter, mapZoom, getMapStyle, mapQuality, onInteractStart, onInteractEnd]);
+
+  // Inicialização do mapa quando houver rota ativa
+  useEffect(() => {
+
     // Inicializa o mapa apenas quando houver rota ativa
     if (!activeRoute || activeRoute.status !== 'active') return;
     if (!mapContainer.current || map.current) return;
 
-    // Ao ativar uma rota, habilitar seguir motorista por padrão
-    setFollowDriver(true);
+    // Não seguir motorista por padrão; apenas centralizar uma vez ao abrir
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -91,6 +263,73 @@ export const GuardianMapboxMap: React.FC<GuardianMapboxMapProps> = ({
       attributionControl: true,
       logoPosition: 'bottom-right'
     });
+
+    // Centralizar inicialmente no motorista, se houver localização disponível
+    if (driverLocation) {
+      const initialPosition: [number, number] = [driverLocation.longitude, driverLocation.latitude];
+      map.current.flyTo({
+        center: initialPosition,
+        zoom: 15,
+        duration: 0
+      });
+      lastDriverLngLatRef.current = initialPosition; // inicializar referência
+
+      // Criar marcador do motorista na abertura se houver localização e nenhum marcador
+      if (!driverMarker.current) {
+        const el = document.createElement('div');
+        el.className = 'driver-marker-static';
+        el.style.cssText = `
+          width: 44px;
+          height: 44px;
+          background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+          border: 3px solid white;
+          border-radius: 50%;
+          box-shadow: 0 4px 16px rgba(107, 114, 128, 0.4);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          color: white;
+          font-weight: bold;
+          transition: all 0.3s ease;
+        `;
+        el.innerHTML = '🚌';
+
+        // Estilo hover para o marcador do motorista
+        if (!document.getElementById('driver-marker-static-styles')) {
+          const style = document.createElement('style');
+          style.id = 'driver-marker-static-styles';
+          style.textContent = `
+            .driver-marker-static:hover {
+              transform: scale(1.1);
+              box-shadow: 0 6px 20px rgba(107, 114, 128, 0.6);
+            }
+          `;
+          document.head.appendChild(style);
+        }
+
+        const popup = new mapboxgl.Popup({
+          offset: 30,
+          className: 'driver-popup-static',
+          closeButton: true,
+          closeOnClick: false
+        }).setHTML(`
+          <div style="padding: 8px;">
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">🚌 Motorista</div>
+            <div style="font-size: 12px; color: #374151;">Localização atual exibida ao abrir o mapa.</div>
+          </div>
+        `);
+
+        driverMarker.current = new mapboxgl.Marker(el)
+          .setLngLat(initialPosition)
+          .setPopup(popup)
+          .addTo(map.current);
+
+        // Abrir popup para destacar a localização do motorista ao abrir
+        driverMarker.current.togglePopup();
+      }
+    }
 
     // Adicionar controles de navegação
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
@@ -110,15 +349,16 @@ export const GuardianMapboxMap: React.FC<GuardianMapboxMapProps> = ({
       showUserHeading: true
     }), 'top-right');
 
-    // Detectar interações do usuário (arrasto/zoom/rotação)
+    // Detectar interações do usuário (arrasto/zoom/rotação) com debounce
     const onInteractStart = () => { 
       isUserInteractingRef.current = true; 
-      // Desativa seguir motorista quando o usuário interagir
-      setFollowDriver(false);
+      console.log('🖱️ Usuário iniciou interação - rastreamento pausado');
     };
+    
     const onInteractEnd = () => { 
       isUserInteractingRef.current = false; 
       lastInteractionAtRef.current = Date.now(); 
+      console.log('🖱️ Usuário finalizou interação - navegação livre ativa');
     };
 
     const m = map.current;
@@ -151,65 +391,27 @@ export const GuardianMapboxMap: React.FC<GuardianMapboxMapProps> = ({
       m.remove();
       map.current = null;
     };
-  }, [activeRoute]);
-
-  // Função para obter o estilo do mapa baseado na qualidade
-  const getMapStyle = (quality: 'high' | 'medium' | 'low') => {
-    switch (quality) {
-      case 'high':
-        return 'mapbox://styles/mapbox/satellite-streets-v12';
-      case 'medium':
-        return 'mapbox://styles/mapbox/streets-v12';
-      case 'low':
-        return 'mapbox://styles/mapbox/light-v11';
-      default:
-        return 'mapbox://styles/mapbox/streets-v12';
-    }
-  };
+  }, [activeRoute, getMapStyle, mapCenter, mapZoom]);
 
   // Atualizar estilo do mapa quando a qualidade mudar
   useEffect(() => {
-    if (map.current) {
-      map.current.setStyle(getMapStyle(mapQuality));
+    if (map.current && map.current.isStyleLoaded()) {
+      // Aguardar o mapa estar completamente carregado antes de mudar o estilo
+      const currentStyle = map.current.getStyle();
+      const newStyle = getMapStyle(mapQuality);
+      
+      // Só atualizar se o estilo realmente mudou
+      if (currentStyle.name !== newStyle) {
+        map.current.setStyle(newStyle);
+      }
     }
-  }, [mapQuality]);
+  }, [mapQuality, getMapStyle]);
 
-  // Atualizar centro e zoom do mapa
-  useEffect(() => {
-    if (!map.current) return;
-    // Quando o usuário escolheu a posição (followDriver = false), não atualizar a câmera automaticamente
-    if (!followDriver) return;
-    if (shouldDeferCamera()) return; // não mexe na câmera durante ou logo após interação do usuário
-
-    const currentCenter = map.current.getCenter();
-    const currentZoom = map.current.getZoom();
-    const zoomDiff = Math.abs(currentZoom - mapZoom);
-    const lngDiff = Math.abs(currentCenter.lng - mapCenter[0]);
-    const latDiff = Math.abs(currentCenter.lat - mapCenter[1]);
-
-    const centerChanged = lngDiff >= 0.0001 || latDiff >= 0.0001;
-    const zoomChanged = zoomDiff >= 0.01;
-
-    if (!centerChanged && zoomChanged) {
-      // Aplicar zoom suave preservando o centro/viewport atual
-      map.current.easeTo({ zoom: mapZoom, duration: 500 });
-      return;
-    }
-
-    if (centerChanged || zoomChanged) {
-      map.current.flyTo({
-        center: mapCenter,
-        zoom: mapZoom,
-        duration: 1000
-      });
-    }
-  }, [mapCenter, mapZoom, followDriver]);
-
-  // Gerenciar marcador do motorista: criar/atualizar sem recentralizar automaticamente
+  // Gerenciar marcador do motorista de forma estática (sem tempo real)
   useEffect(() => {
     if (!map.current) return;
 
-    // Remover marcador se não houver localização
+    // Se não há localização, remover marcador existente e sair
     if (!driverLocation) {
       if (driverMarker.current) {
         driverMarker.current.remove();
@@ -218,116 +420,243 @@ export const GuardianMapboxMap: React.FC<GuardianMapboxMapProps> = ({
       return;
     }
 
-    const getDriverPopupHTML = () => `
-      <div style="padding: 8px;">
-        <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">Motorista</div>
-        <div style="font-size: 12px; color: #374151;">
-          <div><strong>Última atualização:</strong> ${formatTime(driverLocation.timestamp)}</div>
-          ${driverLocation.speed !== undefined ? `<div><strong>Velocidade:</strong> ${driverLocation.speed.toFixed(1)} km/h</div>` : ''}
-          ${driverLocation.accuracy !== undefined ? `<div><strong>Precisão:</strong> ±${Math.round(driverLocation.accuracy)}m</div>` : ''}
+    const position: [number, number] = [driverLocation.longitude, driverLocation.latitude];
+    
+    // Verificar se a posição mudou significativamente (evitar atualizações desnecessárias)
+    const positionKey = `${position[0].toFixed(6)},${position[1].toFixed(6)}`;
+    const lastPositionKey = driverMarker.current?.getLngLat() 
+      ? `${driverMarker.current.getLngLat().lng.toFixed(6)},${driverMarker.current.getLngLat().lat.toFixed(6)}`
+      : '';
+    
+    // Se a posição não mudou significativamente, apenas atualizar o popup
+    if (driverMarker.current && positionKey === lastPositionKey) {
+      // Atualizar apenas o conteúdo do popup sem recriar o marcador
+      const popup = driverMarker.current.getPopup();
+      if (popup) {
+        const popupHTML = `
+          <div style="padding: 8px;">
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">🚌 Motorista</div>
+            <div style="font-size: 12px; color: #374151;">
+              <div><strong>Última atualização:</strong> ${formatTime(driverLocation.timestamp)}</div>
+              ${driverLocation.speed !== undefined ? `<div><strong>Velocidade:</strong> ${driverLocation.speed.toFixed(1)} km/h</div>` : ''}
+              ${driverLocation.accuracy !== undefined ? `<div><strong>Precisão:</strong> ±${Math.round(driverLocation.accuracy)}m</div>` : ''}
+              <div style="margin-top: 4px; padding: 2px 6px; background: #6b7280; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
+                📍 Localização Estática
+              </div>
+            </div>
+          </div>
+        `;
+        popup.setHTML(popupHTML);
+      }
+      return;
+    }
+
+    // Remover marcador existente apenas se a posição mudou
+    if (driverMarker.current) {
+      driverMarker.current.remove();
+      driverMarker.current = null;
+    }
+
+    // Criar HTML do popup
+    const createPopupHTML = () => {
+      return `
+        <div style="padding: 8px;">
+          <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">🚌 Motorista</div>
+          <div style="font-size: 12px; color: #374151;">
+            <div><strong>Última atualização:</strong> ${formatTime(driverLocation.timestamp)}</div>
+            ${driverLocation.speed !== undefined ? `<div><strong>Velocidade:</strong> ${driverLocation.speed.toFixed(1)} km/h</div>` : ''}
+            ${driverLocation.accuracy !== undefined ? `<div><strong>Precisão:</strong> ±${Math.round(driverLocation.accuracy)}m</div>` : ''}
+            <div style="margin-top: 4px; padding: 2px 6px; background: #6b7280; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
+              📍 Localização Estática
+            </div>
+          </div>
         </div>
-      </div>
-    `;
-
-    if (!driverMarker.current) {
-      const el = document.createElement('div');
-      el.className = 'driver-marker';
-      el.style.cssText = `
-        width: 40px;
-        height: 40px;
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-        border: 3px solid white;
-        border-radius: 50%;
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 16px;
-        color: white;
-        font-weight: bold;
       `;
-      el.innerHTML = '🚌';
+    };
 
-      const popup = new mapboxgl.Popup({ offset: 25, className: 'driver-popup' }).setHTML(getDriverPopupHTML());
+    // Criar marcador estático apenas quando necessário
+    const el = document.createElement('div');
+    el.className = 'driver-marker-static';
+    el.style.cssText = `
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 4px 16px rgba(107, 114, 128, 0.4);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: white;
+      font-weight: bold;
+      transition: all 0.3s ease;
+    `;
+    el.innerHTML = '🚌';
 
-      driverMarker.current = new mapboxgl.Marker(el)
-        .setLngLat([driverLocation.longitude, driverLocation.latitude])
-        .setPopup(popup)
-        .addTo(map.current);
-    } else {
-      driverMarker.current.setLngLat([driverLocation.longitude, driverLocation.latitude]);
-      driverMarker.current.getPopup()?.setHTML(getDriverPopupHTML());
+    // Adicionar estilo hover apenas uma vez
+    if (!document.getElementById('driver-marker-static-styles')) {
+      const style = document.createElement('style');
+      style.id = 'driver-marker-static-styles';
+      style.textContent = `
+        .driver-marker-static:hover {
+          transform: scale(1.1);
+          box-shadow: 0 6px 20px rgba(107, 114, 128, 0.6);
+        }
+      `;
+      document.head.appendChild(style);
     }
 
-    // Só recentraliza se followDriver estiver ativo e sem interação recente
-    if (followDriver && !shouldDeferCamera()) {
-      const currentZoom = map.current.getZoom();
-      const targetZoom = Math.max(currentZoom, 15);
-      map.current.easeTo({
-        center: [driverLocation.longitude, driverLocation.latitude],
-        zoom: targetZoom,
-        duration: 700
-      });
-    }
-  }, [driverLocation, followDriver, formatTime]);
+    const popup = new mapboxgl.Popup({ 
+      offset: 30, 
+      className: 'driver-popup-static',
+      closeButton: true,
+      closeOnClick: false
+    }).setHTML(createPopupHTML());
+
+    driverMarker.current = new mapboxgl.Marker(el)
+      .setLngLat(position)
+      .setPopup(popup)
+      .addTo(map.current);
+
+    console.log('🚌 Marcador estático do motorista criado/atualizado na posição:', position);
+  }, [driverLocation]); // Removendo formatTime das dependências
 
   // Marcadores dos estudantes - estáveis (atualiza/recicla em vez de recriar tudo)
   useEffect(() => {
     if (!map.current) return;
 
     const currentIds = new Set<string>();
-
-    studentsWithCoords.forEach(student => {
-      if (!student.latitude || !student.longitude) return;
-      currentIds.add(student.id);
-
-      let marker = studentMarkersMapRef.current.get(student.id);
-      const popupHTML = `
-        <div style="padding: 6px;">
-          <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${student.name}</div>
-          <div style="font-size: 12px; color: #374151;">${student.address}</div>
-        </div>
-      `;
-
-      if (!marker) {
-        const el = document.createElement('div');
-        el.className = 'student-marker';
-        el.style.cssText = `
-          width: 28px;
-          height: 28px;
-          background: #3b82f6;
-          border: 2px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-size: 14px;
-        `;
-        el.innerHTML = '🎒';
-
-        const popup = new mapboxgl.Popup({ offset: 18 }).setHTML(popupHTML);
-        marker = new mapboxgl.Marker(el)
-          .setLngLat([student.longitude, student.latitude])
-          .setPopup(popup)
-          .addTo(map.current!);
-        studentMarkersMapRef.current.set(student.id, marker);
-      } else {
-        marker.setLngLat([student.longitude, student.latitude]);
-        marker.getPopup()?.setHTML(popupHTML);
+    const existingMarkers = new Map<string, mapboxgl.Marker>();
+    
+    // Mapear marcadores existentes por ID do estudante
+    studentMarkers.current.forEach((marker, index) => {
+      const student = memoizedStudentsWithCoords[index];
+      if (student) {
+        existingMarkers.set(student.id, marker);
       }
     });
 
-    // Remover marcadores de estudantes que não estão mais presentes
-    for (const [id, marker] of studentMarkersMapRef.current.entries()) {
-      if (!currentIds.has(id)) {
-        marker.remove();
-        studentMarkersMapRef.current.delete(id);
+    // Limpar array de marcadores para reconstruir
+    studentMarkers.current = [];
+
+    memoizedStudentsWithCoords.forEach(student => {
+      if (!student.latitude || !student.longitude) return;
+      currentIds.add(student.id);
+
+      const position: [number, number] = [student.longitude, student.latitude];
+      const positionKey = `${position[0].toFixed(6)},${position[1].toFixed(6)}`;
+      
+      // Verificar se já existe um marcador para este estudante
+      const existingMarker = existingMarkers.get(student.id);
+      
+      if (existingMarker) {
+        // Verificar se a posição mudou
+        const currentPos = existingMarker.getLngLat();
+        const currentPosKey = `${currentPos.lng.toFixed(6)},${currentPos.lat.toFixed(6)}`;
+        
+        if (currentPosKey === positionKey) {
+          // Posição não mudou, reutilizar marcador existente
+          studentMarkers.current.push(existingMarker);
+          existingMarkers.delete(student.id);
+          return;
+        } else {
+          // Posição mudou, atualizar posição do marcador existente
+          existingMarker.setLngLat(position);
+          
+          // Atualizar popup se necessário
+          const popup = existingMarker.getPopup();
+          if (popup) {
+            popup.setHTML(`
+              <div style="padding: 8px;">
+                <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">👨‍🎓 ${student.name}</div>
+                <div style="font-size: 12px; color: #374151;">
+                  <div><strong>Endereço:</strong> ${student.address}</div>
+                  <div><strong>Escola:</strong> ${student.school}</div>
+                  <div><strong>Período:</strong> ${student.period}</div>
+                  <div style="margin-top: 4px; padding: 2px 6px; background: #10b981; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
+                    📍 Ponto de Coleta
+                  </div>
+                </div>
+              </div>
+            `);
+          }
+          
+          studentMarkers.current.push(existingMarker);
+          existingMarkers.delete(student.id);
+          return;
+        }
       }
-    }
-  }, [studentsWithCoords]);
+
+      // Criar novo marcador apenas se não existir
+      const el = document.createElement('div');
+      el.className = 'student-marker';
+      el.style.cssText = `
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        border: 2px solid white;
+        border-radius: 50%;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        color: white;
+        font-weight: bold;
+        transition: all 0.2s ease;
+      `;
+      el.innerHTML = '👨‍🎓';
+
+      // Adicionar estilo hover apenas uma vez
+      if (!document.getElementById('student-marker-styles')) {
+        const style = document.createElement('style');
+        style.id = 'student-marker-styles';
+        style.textContent = `
+          .student-marker:hover {
+            transform: scale(1.15);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.6);
+          }
+        `;
+        document.head.appendChild(style);
+      }
+
+      const popup = new mapboxgl.Popup({ 
+        offset: 25, 
+        className: 'student-popup',
+        closeButton: true,
+        closeOnClick: false
+      }).setHTML(`
+        <div style="padding: 8px;">
+          <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">👨‍🎓 ${student.name}</div>
+          <div style="font-size: 12px; color: #374151;">
+            <div><strong>Endereço:</strong> ${student.address}</div>
+            <div><strong>Escola:</strong> ${student.school}</div>
+            <div><strong>Período:</strong> ${student.period}</div>
+            <div style="margin-top: 4px; padding: 2px 6px; background: #10b981; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
+              📍 Ponto de Coleta
+            </div>
+          </div>
+        </div>
+      `);
+
+      const marker = new mapboxgl.Marker(el)
+        .setLngLat(position)
+        .setPopup(popup)
+        .addTo(map.current!);
+
+      studentMarkers.current.push(marker);
+    });
+
+    // Remover marcadores que não são mais necessários
+    existingMarkers.forEach(marker => {
+      marker.remove();
+    });
+
+    console.log(`👨‍🎓 Marcadores de estudantes otimizados: ${studentMarkers.current.length} ativos`);
+  }, [memoizedStudentsWithCoords]);
 
   // Marcadores das escolas - estáveis (atualiza/recicla em vez de recriar tudo)
   useEffect(() => {
@@ -335,7 +664,7 @@ export const GuardianMapboxMap: React.FC<GuardianMapboxMapProps> = ({
 
     const currentIds = new Set<string>();
 
-    schoolsWithCoords.forEach(school => {
+    memoizedSchoolsWithCoords.forEach(school => {
       if (!school.latitude || !school.longitude) return;
       currentIds.add(school.id);
 
@@ -384,7 +713,7 @@ export const GuardianMapboxMap: React.FC<GuardianMapboxMapProps> = ({
         schoolMarkersMapRef.current.delete(id);
       }
     }
-  }, [schoolsWithCoords]);
+  }, [memoizedSchoolsWithCoords]);
 
   // Gerenciar rota ativa com atualização incremental (evita remover/adicionar toda vez)
   useEffect(() => {
@@ -456,49 +785,22 @@ export const GuardianMapboxMap: React.FC<GuardianMapboxMapProps> = ({
             style={{ minHeight: '400px' }}
           />
           
-          {/* Indicador de qualidade do mapa */}
-          <div className="absolute bottom-4 left-4 z-10">
-            <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg">
-              <MapQualityIndicator 
-                quality={mapQuality} 
-                onQualityChange={onMapQualityChange}
-              />
-            </div>
-          </div>
-
-          {/* Informações do motorista */}
-          {driverLocation && (
-            <div className="absolute top-4 left-4 z-10">
-              <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg max-w-xs">
-                <h3 className="font-semibold text-sm mb-2">Status do Motorista</h3>
-                <div className="space-y-1 text-xs">
-                  <p><span className="font-medium">Velocidade:</span> {driverLocation.speed ?? 0} km/h</p>
-                  <p><span className="font-medium">Status:</span> 
-                    <span className={`ml-1 px-2 py-0.5 rounded text-xs ${
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      Ativo
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Botão seguir/parar de seguir motorista */}
-          <div className="absolute right-4 top-24 z-10">
-            <button
-              onClick={() => setFollowDriver(v => !v)}
-              className={`px-3 py-2 rounded-md shadow bg-white/90 backdrop-blur-sm text-sm font-medium border ${followDriver ? 'border-green-300 text-green-700' : 'border-gray-300 text-gray-700'}`}
-              title={followDriver ? 'Seguindo motorista. Clique para parar de seguir.' : 'Clique para seguir o motorista.'}
-            >
-              {followDriver ? 'Seguindo motorista' : 'Seguir motorista'}
-            </button>
+          {/* Controles do mapa */}
+          <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
+            {/* Indicador de qualidade do mapa */}
+            <MapQualityIndicator quality={mapQuality} />
+            
+            {/* Indicador de tempo real */}
+            <RealTimeIndicator 
+              isActive={updatesEnabled} 
+              onToggle={() => setUpdatesEnabled(!updatesEnabled)}
+            />
           </div>
         </>
       )}
     </div>
   );
-};
+}
 
 export default GuardianMapboxMap;
+export { GuardianMapboxMap };

@@ -1093,7 +1093,7 @@ export const ActiveTrip = ({ trip, students, schools, driver, onUpdateStudentSta
           <div className="mt-6 mb-4">
             <Button
               onClick={() => setConfirmFinish(true)}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-4 text-lg font-semibold animate-pulse"
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-4 text-lg font-semibold"
             >
               ✅ Encerrar Rota Completa
             </Button>
@@ -1108,7 +1108,7 @@ export const ActiveTrip = ({ trip, students, schools, driver, onUpdateStudentSta
 
       {/* Location Message */}
       {locationMessage && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg animate-pulse">
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg animate-pulse-slow">
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4" />
             <span className="text-sm font-medium">{locationMessage}</span>

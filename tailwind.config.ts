@@ -211,7 +211,9 @@ export default {
 				'fade-in': 'fade-in 0.3s ease-out',
 				'slide-up': 'slide-up 0.3s ease-out',
 				'scale-in': 'scale-in 0.2s ease-out',
-				'bounce-gentle': 'bounce-gentle 2s infinite'
+				'bounce-gentle': 'bounce-gentle 2s infinite',
+				// Pulso mais lento para reduzir a velocidade
+				'pulse-slow': 'pulse 10s cubic-bezier(0.4, 0, 0.6, 1) infinite'
 			},
 			backdropBlur: {
 				xs: '2px',

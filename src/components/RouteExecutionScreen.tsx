@@ -230,13 +230,14 @@ export const RouteExecutionScreen = ({
                 <div className="space-y-3">
                     <Button
                         onClick={() => onSaveChanges(routeItems)}
-                        className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-full"
+                        className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white py-4 rounded-full shadow-md hover:shadow-lg transition-transform duration-200 hover:scale-105 active:scale-95"
                     >
                         Salvar Mudanças
                     </Button>
                     <Button
                         onClick={onStartRoute}
-                        className="w-full bg-purple-500 hover:bg-purple-600 text-white py-4 rounded-full"
+                        className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-4 rounded-full shadow-md hover:shadow-lg transition-transform duration-200 hover:scale-105 active:scale-95
+"
                     >
                         Iniciar Rota
                     </Button>
