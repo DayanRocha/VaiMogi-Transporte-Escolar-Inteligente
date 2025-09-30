@@ -113,7 +113,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
 
   // Filtrar estudantes e escolas com coordenadas válidas (usando dados geocodificados)
   const studentsWithCoords = useMemo(() => (
-    geocodedStudents.filter(student => 
+    geocodedStudents?.filter(student => 
       student.latitude && 
       student.longitude && 
       typeof student.latitude === 'number' &&
@@ -122,11 +122,11 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
       !isNaN(student.longitude) &&
       student.latitude !== 0 &&
       student.longitude !== 0
-    )
+    ) || []
   ), [geocodedStudents]);
 
   const schoolsWithCoords = useMemo(() => (
-    geocodedSchools.filter(school => 
+    geocodedSchools?.filter(school => 
       school.latitude && 
       school.longitude &&
       typeof school.latitude === 'number' &&
@@ -135,7 +135,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
       !isNaN(school.longitude) &&
       school.latitude !== 0 &&
       school.longitude !== 0
-    )
+    ) || []
   ), [geocodedSchools]);
 
   // Sempre atualizar centro do mapa para seguir o motorista em tempo real

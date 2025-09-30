@@ -4,6 +4,8 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Student, School } from '@/types/driver';
 // Removido indicador de qualidade para evitar sobreposições no mapa
 import { useMapboxMap } from '../hooks/useMapboxMap';
+import { MapQualityIndicator } from './MapQualityIndicator';
+import { RealTimeIndicator } from './RealTimeIndicator';
 
 // Configure o token do Mapbox usando a variável de ambiente do Vite
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
@@ -98,12 +100,27 @@ function GuardianMapboxMap({
     formatTime,
     calculateDistance,
     createGeoJSONFeature,
-    createPointFeature
-  } = useMapboxMap({
-    driverLocation,
-    students,
-    schools
-  });
+    setMapCenter,
+    setMapZoom
+  } = useMapboxMap({ driverLocation, students, schools });
+
+  // Estados locais para controle do mapa
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
+
+  // Inicializar studentMarkers como array vazio
+  const studentMarkers = useRef<mapboxgl.Marker[]>([]);
+
+  // Definir funções de interação no escopo do componente
+  const onInteractStart = useCallback(() => { 
+    isUserInteractingRef.current = true; 
+    console.log('🖱️ Usuário iniciou interação - rastreamento pausado');
+  }, []);
+  
+  const onInteractEnd = useCallback(() => { 
+    isUserInteractingRef.current = false; 
+    lastInteractionAtRef.current = Date.now(); 
+    console.log('🖱️ Usuário finalizou interação - navegação livre ativa');
+  }, []);
 
   // Otimização: memoizar função getDriverPopupHTML para evitar recriações
   const getDriverPopupHTML = useCallback(() => {
@@ -244,154 +261,116 @@ function GuardianMapboxMap({
     };
   }, [mapCenter, mapZoom, getMapStyle, mapQuality, onInteractStart, onInteractEnd]);
 
-  // Inicialização do mapa quando houver rota ativa
+  // Abertura do mapa quando houver rota ativa (sem recriar mapa)
   useEffect(() => {
-
-    // Inicializa o mapa apenas quando houver rota ativa
+    if (!map.current) return;
     if (!activeRoute || activeRoute.status !== 'active') return;
-    if (!mapContainer.current || map.current) return;
 
-    // Não seguir motorista por padrão; apenas centralizar uma vez ao abrir
-
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: getMapStyle(mapQuality),
-      center: mapCenter,
-      zoom: mapZoom,
-      minZoom: 8,
-      maxZoom: 20,
-      attributionControl: true,
-      logoPosition: 'bottom-right'
-    });
-
-    // Centralizar inicialmente no motorista, se houver localização disponível
-    if (driverLocation) {
-      const initialPosition: [number, number] = [driverLocation.longitude, driverLocation.latitude];
-      map.current.flyTo({
-        center: initialPosition,
-        zoom: 15,
-        duration: 0
-      });
-      lastDriverLngLatRef.current = initialPosition; // inicializar referência
-
-      // Criar marcador do motorista na abertura se houver localização e nenhum marcador
-      if (!driverMarker.current) {
-        const el = document.createElement('div');
-        el.className = 'driver-marker-static';
-        el.style.cssText = `
-          width: 44px;
-          height: 44px;
-          background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 4px 16px rgba(107, 114, 128, 0.4);
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 18px;
-          color: white;
-          font-weight: bold;
-          transition: all 0.3s ease;
-        `;
-        el.innerHTML = '🚌';
-
-        // Estilo hover para o marcador do motorista
-        if (!document.getElementById('driver-marker-static-styles')) {
-          const style = document.createElement('style');
-          style.id = 'driver-marker-static-styles';
-          style.textContent = `
-            .driver-marker-static:hover {
-              transform: scale(1.1);
-              box-shadow: 0 6px 20px rgba(107, 114, 128, 0.6);
-            }
-          `;
-          document.head.appendChild(style);
+    // Calcular bounds para incluir todos os pontos relevantes
+    const calculateBounds = () => {
+      const bounds = new mapboxgl.LngLatBounds();
+      
+      // Adicionar localização do motorista
+      if (driverLocation) {
+        bounds.extend([driverLocation.longitude, driverLocation.latitude]);
+      }
+      
+      // Adicionar coordenadas da rota
+      if (activeRoute.coordinates && activeRoute.coordinates.length > 0) {
+        activeRoute.coordinates.forEach(coord => bounds.extend(coord));
+      }
+      
+      // Adicionar localizações dos estudantes
+      memoizedStudentsWithCoords.forEach(student => {
+        if (student.latitude && student.longitude) {
+          bounds.extend([student.longitude, student.latitude]);
         }
+      });
+      
+      // Adicionar localizações das escolas
+      memoizedSchoolsWithCoords.forEach(school => {
+        if (school.latitude && school.longitude) {
+          bounds.extend([school.longitude, school.latitude]);
+        }
+      });
+      
+      return bounds;
+    };
 
-        const popup = new mapboxgl.Popup({
-          offset: 30,
-          className: 'driver-popup-static',
-          closeButton: true,
-          closeOnClick: false
-        }).setHTML(`
-          <div style="padding: 8px;">
-            <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">🚌 Motorista</div>
-            <div style="font-size: 12px; color: #374151;">Localização atual exibida ao abrir o mapa.</div>
-          </div>
-        `);
-
-        driverMarker.current = new mapboxgl.Marker(el)
-          .setLngLat(initialPosition)
-          .setPopup(popup)
-          .addTo(map.current);
-
-        // Abrir popup para destacar a localização do motorista ao abrir
-        driverMarker.current.togglePopup();
+    // Centralizar para mostrar todos os pontos apenas na primeira vez
+    if (!lastDriverLngLatRef.current) {
+      const bounds = calculateBounds();
+      
+      if (!bounds.isEmpty()) {
+        map.current.fitBounds(bounds, {
+          padding: { top: 50, bottom: 50, left: 50, right: 50 },
+          maxZoom: 16,
+          duration: 1500
+        });
+        console.log('🎯 Centralização inicial para mostrar todos os marcadores');
+      } else if (driverLocation) {
+        // Fallback: centralizar apenas no motorista se não houver outros pontos
+        const initialPosition: [number, number] = [driverLocation.longitude, driverLocation.latitude];
+        map.current.flyTo({
+          center: initialPosition,
+          zoom: 15,
+          duration: 1000
+        });
+        console.log('🎯 Centralização inicial no motorista (fallback)');
+      }
+      
+      if (driverLocation) {
+        lastDriverLngLatRef.current = [driverLocation.longitude, driverLocation.latitude];
       }
     }
 
-    // Adicionar controles de navegação
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    
-    // Adicionar controle de escala
-    map.current.addControl(new mapboxgl.ScaleControl({
-      maxWidth: 100,
-      unit: 'metric'
-    }), 'bottom-left');
+    // Criar marcador do motorista ao abrir se não existir
+    if (driverLocation && !driverMarker.current) {
+      const el = document.createElement('div');
+      el.className = 'driver-marker-static';
+      el.style.cssText = `
+        width: 44px;
+        height: 44px;
+        background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+        border: 3px solid white;
+        border-radius: 50%;
+        box-shadow: 0 4px 16px rgba(107, 114, 128, 0.4);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        transition: all 0.3s ease;
+        z-index: 1000;
+      `;
+      el.innerHTML = '🚌';
 
-    // Adicionar controle de geolocalização
-    map.current.addControl(new mapboxgl.GeolocateControl({
-      positionOptions: {
-        enableHighAccuracy: true
-      },
-      trackUserLocation: true,
-      showUserHeading: true
-    }), 'top-right');
+      const popup = new mapboxgl.Popup({
+        offset: 25,
+        closeButton: false,
+        closeOnClick: false
+      }).setHTML(`
+        <div style="padding: 8px;">
+          <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">🚌 Motorista</div>
+          <div style="font-size: 12px; color: #374151;">
+            <div><strong>Última atualização:</strong> ${formatTime(driverLocation.timestamp)}</div>
+            ${driverLocation.speed !== undefined ? `<div><strong>Velocidade:</strong> ${driverLocation.speed.toFixed(1)} km/h</div>` : ''}
+            ${driverLocation.accuracy !== undefined ? `<div><strong>Precisão:</strong> ±${Math.round(driverLocation.accuracy)}m</div>` : ''}
+            <div style="margin-top: 4px; padding: 2px 6px; background: #6b7280; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
+              📍 Localização Estática
+            </div>
+          </div>
+        </div>
+      `);
 
-    // Detectar interações do usuário (arrasto/zoom/rotação) com debounce
-    const onInteractStart = () => { 
-      isUserInteractingRef.current = true; 
-      console.log('🖱️ Usuário iniciou interação - rastreamento pausado');
-    };
-    
-    const onInteractEnd = () => { 
-      isUserInteractingRef.current = false; 
-      lastInteractionAtRef.current = Date.now(); 
-      console.log('🖱️ Usuário finalizou interação - navegação livre ativa');
-    };
+      driverMarker.current = new mapboxgl.Marker(el)
+        .setLngLat([driverLocation.longitude, driverLocation.latitude])
+        .setPopup(popup)
+        .addTo(map.current);
 
-    const m = map.current;
-    m.on('dragstart', onInteractStart);
-    m.on('zoomstart', onInteractStart);
-    m.on('rotatestart', onInteractStart);
-    m.on('pitchstart', onInteractStart);
-    m.on('movestart', onInteractStart);
-
-    m.on('dragend', onInteractEnd);
-    m.on('zoomend', onInteractEnd);
-    m.on('rotateend', onInteractEnd);
-    m.on('pitchend', onInteractEnd);
-    m.on('moveend', onInteractEnd);
-
-    return () => {
-      if (!map.current) return;
-      m.off('dragstart', onInteractStart);
-      m.off('zoomstart', onInteractStart);
-      m.off('rotatestart', onInteractStart);
-      m.off('pitchstart', onInteractStart);
-      m.off('movestart', onInteractStart);
-
-      m.off('dragend', onInteractEnd);
-      m.off('zoomend', onInteractEnd);
-      m.off('rotateend', onInteractEnd);
-      m.off('pitchend', onInteractEnd);
-      m.off('moveend', onInteractEnd);
-
-      m.remove();
-      map.current = null;
-    };
-  }, [activeRoute, getMapStyle, mapCenter, mapZoom]);
+      console.log('🚌 Marcador do motorista criado na abertura da rota');
+    }
+  }, [activeRoute, driverLocation, formatTime]);
 
   // Atualizar estilo do mapa quando a qualidade mudar
   useEffect(() => {
@@ -441,7 +420,7 @@ function GuardianMapboxMap({
               ${driverLocation.speed !== undefined ? `<div><strong>Velocidade:</strong> ${driverLocation.speed.toFixed(1)} km/h</div>` : ''}
               ${driverLocation.accuracy !== undefined ? `<div><strong>Precisão:</strong> ±${Math.round(driverLocation.accuracy)}m</div>` : ''}
               <div style="margin-top: 4px; padding: 2px 6px; background: #6b7280; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
-                📍 Localização Estática
+                📍 Localização Atualizada
               </div>
             </div>
           </div>
@@ -451,10 +430,31 @@ function GuardianMapboxMap({
       return;
     }
 
-    // Remover marcador existente apenas se a posição mudou
+    // Se já existe marcador, apenas atualizar posição (sem recentralizar mapa)
     if (driverMarker.current) {
-      driverMarker.current.remove();
-      driverMarker.current = null;
+      driverMarker.current.setLngLat(position);
+      
+      // Atualizar popup com nova informação
+      const popup = driverMarker.current.getPopup();
+      if (popup) {
+        const popupHTML = `
+          <div style="padding: 8px;">
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">🚌 Motorista</div>
+            <div style="font-size: 12px; color: #374151;">
+              <div><strong>Última atualização:</strong> ${formatTime(driverLocation.timestamp)}</div>
+              ${driverLocation.speed !== undefined ? `<div><strong>Velocidade:</strong> ${driverLocation.speed.toFixed(1)} km/h</div>` : ''}
+              ${driverLocation.accuracy !== undefined ? `<div><strong>Precisão:</strong> ±${Math.round(driverLocation.accuracy)}m</div>` : ''}
+              <div style="margin-top: 4px; padding: 2px 6px; background: #10b981; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
+                📍 Posição Atualizada
+              </div>
+            </div>
+          </div>
+        `;
+        popup.setHTML(popupHTML);
+      }
+      
+      console.log('🚌 Posição do motorista atualizada (sem recentralizar)');
+      return;
     }
 
     // Criar HTML do popup
@@ -523,9 +523,17 @@ function GuardianMapboxMap({
     console.log('🚌 Marcador estático do motorista criado/atualizado na posição:', position);
   }, [driverLocation]); // Removendo formatTime das dependências
 
-  // Marcadores dos estudantes - estáveis (atualiza/recicla em vez de recriar tudo)
+  // Marcadores dos estudantes - otimizados (atualiza/recicla em vez de recriar tudo)
   useEffect(() => {
     if (!map.current) return;
+    
+    // Só exibir marcadores quando há rota ativa
+    if (!activeRoute || activeRoute.status !== 'active') {
+      // Remover todos os marcadores quando não há rota ativa
+      studentMarkers.current.forEach(marker => marker.remove());
+      studentMarkers.current = [];
+      return;
+    }
 
     const currentIds = new Set<string>();
     const existingMarkers = new Map<string, mapboxgl.Marker>();
@@ -568,15 +576,19 @@ function GuardianMapboxMap({
           // Atualizar popup se necessário
           const popup = existingMarker.getPopup();
           if (popup) {
+            // Encontrar a escola do estudante
+            const studentSchool = schools.find(school => school.id === student.schoolId);
+            
             popup.setHTML(`
               <div style="padding: 8px;">
                 <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">👨‍🎓 ${student.name}</div>
                 <div style="font-size: 12px; color: #374151;">
                   <div><strong>Endereço:</strong> ${student.address}</div>
-                  <div><strong>Escola:</strong> ${student.school}</div>
-                  <div><strong>Período:</strong> ${student.period}</div>
-                  <div style="margin-top: 4px; padding: 2px 6px; background: #10b981; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
-                    📍 Ponto de Coleta
+                  <div><strong>Ponto de Coleta:</strong> ${student.pickupPoint}</div>
+                  ${studentSchool ? `<div><strong>Escola:</strong> ${studentSchool.name}</div>` : ''}
+                  <div><strong>Responsável:</strong> ${student.guardianPhone}</div>
+                  <div style="margin-top: 6px; padding: 3px 8px; background: #10b981; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
+                    📍 ${student.status === 'waiting' ? 'Aguardando' : student.status === 'embarked' ? 'Embarcado' : 'Na Escola'}
                   </div>
                 </div>
               </div>
@@ -633,10 +645,11 @@ function GuardianMapboxMap({
           <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">👨‍🎓 ${student.name}</div>
           <div style="font-size: 12px; color: #374151;">
             <div><strong>Endereço:</strong> ${student.address}</div>
-            <div><strong>Escola:</strong> ${student.school}</div>
-            <div><strong>Período:</strong> ${student.period}</div>
-            <div style="margin-top: 4px; padding: 2px 6px; background: #10b981; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
-              📍 Ponto de Coleta
+            <div><strong>Ponto de Coleta:</strong> ${student.pickupPoint}</div>
+            ${schools.find(school => school.id === student.schoolId) ? `<div><strong>Escola:</strong> ${schools.find(school => school.id === student.schoolId)?.name}</div>` : ''}
+            <div><strong>Responsável:</strong> ${student.guardianPhone}</div>
+            <div style="margin-top: 6px; padding: 3px 8px; background: #10b981; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
+              📍 ${student.status === 'waiting' ? 'Aguardando' : student.status === 'embarked' ? 'Embarcado' : 'Na Escola'}
             </div>
           </div>
         </div>
@@ -656,11 +669,21 @@ function GuardianMapboxMap({
     });
 
     console.log(`👨‍🎓 Marcadores de estudantes otimizados: ${studentMarkers.current.length} ativos`);
-  }, [memoizedStudentsWithCoords]);
+  }, [memoizedStudentsWithCoords, activeRoute]);
 
   // Marcadores das escolas - estáveis (atualiza/recicla em vez de recriar tudo)
   useEffect(() => {
     if (!map.current) return;
+    
+    // Só exibir marcadores quando há rota ativa
+    if (!activeRoute || activeRoute.status !== 'active') {
+      // Remover todos os marcadores quando não há rota ativa
+      for (const [id, marker] of schoolMarkersMapRef.current.entries()) {
+        marker.remove();
+        schoolMarkersMapRef.current.delete(id);
+      }
+      return;
+    }
 
     const currentIds = new Set<string>();
 
@@ -669,10 +692,22 @@ function GuardianMapboxMap({
       currentIds.add(school.id);
 
       let marker = schoolMarkersMapRef.current.get(school.id);
+      
+      // Contar quantos estudantes estão associados a esta escola
+      const studentsInSchool = students.filter(student => student.schoolId === school.id).length;
+      
       const popupHTML = `
-        <div style="padding: 6px;">
-          <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${school.name}</div>
-          <div style="font-size: 12px; color: #374151;">${school.address}</div>
+        <div style="padding: 10px;">
+          <div style="font-weight: 600; font-size: 16px; margin-bottom: 8px; color: #059669;">🏫 ${school.name}</div>
+          <div style="font-size: 12px; color: #374151;">
+            <div style="margin-bottom: 4px;"><strong>📍 Endereço:</strong></div>
+            <div style="margin-bottom: 8px; padding: 4px; background: #f3f4f6; border-radius: 4px;">${school.address}</div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="background: #10b981; color: white; padding: 2px 6px; border-radius: 12px; font-size: 10px; font-weight: 600;">
+                👨‍🎓 ${studentsInSchool} ${studentsInSchool === 1 ? 'Aluno' : 'Alunos'}
+              </span>
+            </div>
+          </div>
         </div>
       `;
 
@@ -680,19 +715,21 @@ function GuardianMapboxMap({
         const el = document.createElement('div');
         el.className = 'school-marker';
         el.style.cssText = `
-          width: 28px;
-          height: 28px;
-          background: #10b981;
-          border: 2px solid white;
+          width: 32px;
+          height: 32px;
+          background: linear-gradient(135deg, #059669 0%, #047857 100%);
+          border: 3px solid white;
           border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+          box-shadow: 0 3px 12px rgba(5, 150, 105, 0.4);
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
-          font-size: 14px;
+          font-size: 16px;
+          cursor: pointer;
+          transition: all 0.2s ease;
         `;
-        el.innerHTML = '🎓';
+        el.innerHTML = '🏫';
 
         const popup = new mapboxgl.Popup({ offset: 18 }).setHTML(popupHTML);
         marker = new mapboxgl.Marker(el)
@@ -713,7 +750,7 @@ function GuardianMapboxMap({
         schoolMarkersMapRef.current.delete(id);
       }
     }
-  }, [memoizedSchoolsWithCoords]);
+  }, [memoizedSchoolsWithCoords, activeRoute]);
 
   // Gerenciar rota ativa com atualização incremental (evita remover/adicionar toda vez)
   useEffect(() => {
@@ -767,36 +804,42 @@ function GuardianMapboxMap({
 
   return (
     <div className="relative w-full h-full">
-      {(!activeRoute || activeRoute.status !== 'active') ? (
-        <div className="w-full h-full flex items-center justify-center p-6">
-          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-6 shadow-lg max-w-lg text-center">
-            <h2 className="text-lg font-semibold mb-2">Aguardando nova rota</h2>
-            <p className="text-sm text-gray-600">
-              Não há rota ativa no momento. O sistema está aguardando a definição de uma nova rota para exibir o mapa.
-            </p>
-          </div>
-        </div>
-      ) : (
+      {/* Renderização condicional: mapa OU overlay */}
+      {activeRoute && activeRoute.status === 'active' ? (
         <>
-          {/* Container do mapa */}
+          {/* Container do mapa - apenas quando há rota ativa */}
           <div 
             ref={mapContainer} 
             className="mapbox-map w-full h-full"
             style={{ minHeight: '400px' }}
           />
-          
+
           {/* Controles do mapa */}
           <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-            {/* Indicador de qualidade do mapa */}
-            <MapQualityIndicator quality={mapQuality} />
-            
-            {/* Indicador de tempo real */}
-            <RealTimeIndicator 
-              isActive={updatesEnabled} 
-              onToggle={() => setUpdatesEnabled(!updatesEnabled)}
-            />
+            <MapQualityIndicator quality={mapQuality} onQualityChange={onMapQualityChange} />
+            <RealTimeIndicator />
           </div>
         </>
+      ) : (
+        /* Overlay informativo quando NÃO há rota ativa */
+        <div className="w-full h-full flex items-center justify-center p-6 bg-gray-50">
+          <div className="bg-white rounded-lg p-8 shadow-lg max-w-lg text-center border border-gray-200">
+            <div className="mb-4">
+              <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+            <h2 className="text-xl font-semibold mb-3 text-gray-800">Aguardando próxima rota</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Não há rota ativa no momento. O mapa será exibido quando uma nova rota for iniciada.
+            </p>
+            <div className="text-xs text-gray-500 bg-gray-100 rounded-lg p-3">
+              <strong>Status:</strong> Aguardando definição de rota
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

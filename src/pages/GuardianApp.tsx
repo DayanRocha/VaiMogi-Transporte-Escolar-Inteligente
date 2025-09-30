@@ -14,6 +14,7 @@ import { useRealTimeNotifications } from '@/hooks/useRealTimeNotifications';
 import { useRouteTracking } from '@/hooks/useRouteTracking';
 import { audioService } from '@/services/audioService';
 import { initNotificationCleanup } from '@/utils/notificationCleanup';
+import { updateSchoolsData } from '@/utils/updateSchoolsData';
 
 export const GuardianApp = () => {
   const navigate = useNavigate();
@@ -130,6 +131,16 @@ export const GuardianApp = () => {
       setShowWelcome(true);
     }
   }, [guardian.id]);
+
+  // Atualizar dados das escolas quando o componente for carregado
+  useEffect(() => {
+    try {
+      updateSchoolsData();
+      console.log('🏫 Dados das escolas atualizados no GuardianApp');
+    } catch (error) {
+      console.error('❌ Erro ao atualizar dados das escolas:', error);
+    }
+  }, []);
 
   // Inicializar serviço de áudio e limpeza de notificações
   useEffect(() => {

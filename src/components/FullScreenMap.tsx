@@ -23,6 +23,7 @@ interface FullScreenMapProps {
     status: 'pending' | 'picked_up' | 'dropped_off';
   }>;
   hideOverlays?: boolean; // Nova prop para ocultar overlays no painel do motorista
+  hideDriverMarker?: boolean; // Nova prop para ocultar o marcador do motorista
 }
 
 export const FullScreenMap: React.FC<FullScreenMapProps> = React.memo(({
@@ -30,7 +31,8 @@ export const FullScreenMap: React.FC<FullScreenMapProps> = React.memo(({
   isOpen,
   onClose,
   studentPickups = [],
-  hideOverlays = false
+  hideOverlays = false,
+  hideDriverMarker = false
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -100,6 +102,17 @@ export const FullScreenMap: React.FC<FullScreenMapProps> = React.memo(({
   const updateDriverLocation = useCallback((location: typeof driverLocation) => {
     if (!map.current || !isMapLoaded || !location) return;
 
+    // Se hideDriverMarker for true, não criar o marcador do motorista
+    if (hideDriverMarker) {
+      // Apenas centralizar o mapa na localização sem mostrar o marcador
+      map.current.easeTo({
+        center: [location.lng, location.lat],
+        zoom: 16,
+        duration: 2500
+      });
+      return;
+    }
+
     try {
       // Verificar se a localização mudou significativamente
       const locationKey = `${location.lat.toFixed(6)},${location.lng.toFixed(6)}`;
@@ -153,7 +166,7 @@ export const FullScreenMap: React.FC<FullScreenMapProps> = React.memo(({
     } catch (error) {
       console.error('Erro ao atualizar localização do motorista:', error);
     }
-  }, [isMapLoaded, isOpen]);
+  }, [isMapLoaded, isOpen, hideDriverMarker]);
 
   // Atualizar localização do motorista com debounce
   useEffect(() => {

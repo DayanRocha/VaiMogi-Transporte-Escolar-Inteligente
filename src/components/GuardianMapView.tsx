@@ -123,6 +123,7 @@ export const GuardianMapView = React.memo(({ driver, van, students, activeTrip }
       isOpen={false} // Modo container para o painel do responsável
       onClose={() => {}} // Não permite fechar no painel do responsável
       hideOverlays={true} // Ocultar overlays no painel do motorista
+      hideDriverMarker={hasActiveRoute} // Ocultar marcador do motorista quando a rota estiver ativa
     />
   );
 });

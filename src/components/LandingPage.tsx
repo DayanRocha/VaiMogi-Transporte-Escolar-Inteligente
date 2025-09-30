@@ -165,54 +165,114 @@ export const LandingPage = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="relative py-20 overflow-hidden">
-        {/* Background Video */}
-        <div className="absolute inset-0 z-0">
-          <VideoPlayer
-            src="/videos/d8071030-4df3-4c91-bd24-528f67f35fff.mp4"
-            poster="/vai-mogi.png"
-            title="Demonstração do VaiMogi"
-            className="w-full h-full object-cover"
-            autoPlay={true}
-            muted={true}
-            loop={true}
-            controls={false}
-            preload="auto"
-            onError={() => console.log('Erro ao carregar vídeo')}
-          />
+      <section className="py-20 overflow-hidden">
+        {/* Mobile Layout - Vertical Stack */}
+        <div className="block lg:hidden">
+          <div className="container-responsive">
+            {/* Video Content */}
+            <div className="mb-8 animate-fade-in">
+              <div className="rounded-2xl overflow-hidden shadow-2xl">
+                <VideoPlayer
+                  src="/videos/d8071030-4df3-4c91-bd24-528f67f35fff.mp4"
+                  poster="/vai-mogi.png"
+                  title="Demonstração do VaiMogi"
+                  className="w-full h-auto aspect-video object-cover"
+                  autoPlay={true}
+                  muted={true}
+                  loop={true}
+                  controls={false}
+                  preload="auto"
+                  onError={() => console.log('Erro ao carregar vídeo')}
+                />
+              </div>
+            </div>
+
+            {/* Text Content */}
+            <div className="text-center animate-slide-up">
+              <h1 className="text-display text-neutral-900 mb-6">
+                <span>Transporte Escolar</span>
+                <span className="text-primary block">Inteligente e Seguro</span>
+              </h1>
+              <p className="text-body-lg text-neutral-700 mb-8 leading-relaxed">
+                Conecte motoristas, responsáveis e escolas em uma plataforma completa
+                de gestão de transporte escolar com rastreamento em tempo real.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button
+                  size="lg"
+                  onClick={() => navigate('/login')}
+                  className="px-8 py-4 text-lg shadow-xl"
+                >
+                  Começar Agora
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => navigate('/login', { state: { openGuardianDialog: true } })}
+                  className="px-8 py-4 text-lg shadow-xl"
+                >
+                  <Eye className="w-5 h-5 mr-2" />
+                  Acompanhar Transporte
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* White Overlay for Text Readability */}
-        <div className="absolute inset-0 bg-white/40 z-10"></div>
+        {/* Desktop Layout - Side by Side */}
+        <div className="hidden lg:block">
+          <div className="container-responsive">
+            <div className="grid lg:grid-cols-2 gap-12 items-center min-h-[600px]">
+              {/* Text Content */}
+              <div className="animate-fade-in">
+                <h1 className="text-display text-neutral-900 mb-6">
+                  <span>Transporte Escolar</span>
+                  <span className="text-primary block">Inteligente e Seguro</span>
+                </h1>
+                <p className="text-body-lg text-neutral-700 mb-8 leading-relaxed">
+                  Conecte motoristas, responsáveis e escolas em uma plataforma completa
+                  de gestão de transporte escolar com rastreamento em tempo real.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 animate-slide-up">
+                  <Button
+                    size="lg"
+                    onClick={() => navigate('/login')}
+                    className="px-8 py-4 text-lg shadow-xl"
+                  >
+                    Começar Agora
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => navigate('/login', { state: { openGuardianDialog: true } })}
+                    className="px-8 py-4 text-lg shadow-xl"
+                  >
+                    <Eye className="w-5 h-5 mr-2" />
+                    Acompanhar Transporte
+                  </Button>
+                </div>
+              </div>
 
-        {/* Content */}
-        <div className="relative z-20 container-responsive text-center mt-[110px] animate-fade-in">
-          <h1 className="text-display text-neutral-900 mb-6 drop-shadow-2xl">
-            <span className="drop-shadow-lg">Transporte Escolar</span>
-            <span className="text-primary block drop-shadow-lg">Inteligente e Seguro</span>
-          </h1>
-          <p className="text-body-lg md:text-2xl text-neutral-800 mb-8 max-w-4xl mx-auto font-semibold drop-shadow-lg leading-relaxed">
-            Conecte motoristas, responsáveis e escolas em uma plataforma completa
-            de gestão de transporte escolar com rastreamento em tempo real.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up">
-            <Button
-              size="lg"
-              onClick={() => navigate('/login')}
-              className="px-8 py-4 text-lg shadow-2xl"
-            >
-              Começar Agora
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => navigate('/login', { state: { openGuardianDialog: true } })}
-              className="px-8 py-4 text-lg shadow-2xl bg-white/90"
-            >
-              <Eye className="w-5 h-5 mr-2" />
-              Acompanhar Transporte
-            </Button>
+              {/* Video Content */}
+              <div className="animate-slide-up">
+                <div className="rounded-2xl overflow-hidden shadow-2xl">
+                  <VideoPlayer
+                    src="/videos/d8071030-4df3-4c91-bd24-528f67f35fff.mp4"
+                    poster="/vai-mogi.png"
+                    title="Demonstração do VaiMogi"
+                    className="w-full h-auto aspect-video object-cover"
+                    autoPlay={true}
+                    muted={true}
+                    loop={true}
+                    controls={false}
+                    preload="auto"
+                    onError={() => console.log('Erro ao carregar vídeo')}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
