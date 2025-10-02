@@ -47,8 +47,7 @@ class RealtimeDataService {
   }
 
   /**
-   * Geocodifica um endereço usando coordenadas simuladas
-   * Versão simplificada sem integração com Mapbox
+   * Geocodifica um endereço usando a API do Mapbox
    */
   private async geocodeAddress(address: string): Promise<[number, number] | null> {
     try {
@@ -58,46 +57,52 @@ class RealtimeDataService {
         return null;
       }
 
-      console.log('🔍 Simulando geocodificação para endereço:', address);
+      console.log('🔍 Geocodificando endereço via Mapbox:', address);
       
-      // Simular coordenadas baseadas no hash do endereço
-      // Coordenadas aproximadas da região de Mogi das Cruzes, SP
-      const baseLatitude = -23.5225; // Mogi das Cruzes latitude base
-      const baseLongitude = -46.1883; // Mogi das Cruzes longitude base
+      // Obter token do Mapbox
+      const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+      if (!mapboxToken) {
+        console.error('❌ Token do Mapbox não configurado');
+        return null;
+      }
+
+      // Codificar endereço para URL
+      const encodedAddress = encodeURIComponent(address);
       
-      // Gerar variação baseada no endereço para simular diferentes localizações
-      const addressHash = this.simpleHash(address.trim().toLowerCase());
-      const latVariation = (addressHash % 200 - 100) / 10000; // Variação de ±0.01 graus
-      const lngVariation = (addressHash % 300 - 150) / 10000; // Variação de ±0.015 graus
+      // Fazer requisição para API de Geocoding do Mapbox
+      // Adicionar country=br para priorizar resultados no Brasil
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?access_token=${mapboxToken}&country=br&limit=1`;
       
-      const simulatedLat = baseLatitude + latVariation;
-      const simulatedLng = baseLongitude + lngVariation;
+      const response = await fetch(url);
       
-      console.log('✅ Coordenadas simuladas geradas:', { 
-        address, 
-        lng: simulatedLng, 
-        lat: simulatedLat 
-      });
+      if (!response.ok) {
+        console.error('❌ Erro na requisição de geocodificação:', response.status, response.statusText);
+        return null;
+      }
       
-      return [simulatedLng, simulatedLat];
+      const data = await response.json();
+      
+      if (data.features && data.features.length > 0) {
+        const [lng, lat] = data.features[0].center;
+        const placeName = data.features[0].place_name;
+        
+        console.log('✅ Coordenadas obtidas via Mapbox:', { 
+          address, 
+          placeName,
+          lng, 
+          lat 
+        });
+        
+        return [lng, lat];
+      } else {
+        console.warn('⚠️ Nenhum resultado encontrado para o endereço:', address);
+        return null;
+      }
       
     } catch (error) {
-      console.error('❌ Erro ao simular geocodificação:', { address, error });
+      console.error('❌ Erro ao geocodificar endereço:', { address, error });
       return null;
     }
-  }
-
-  /**
-   * Função auxiliar para gerar hash simples de uma string
-   */
-  private simpleHash(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Converter para 32bit integer
-    }
-    return Math.abs(hash);
   }
 
   static getInstance(): RealtimeDataService {

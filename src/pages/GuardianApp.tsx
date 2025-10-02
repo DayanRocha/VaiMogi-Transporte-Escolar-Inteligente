@@ -15,6 +15,7 @@ import { useRouteTracking } from '@/hooks/useRouteTracking';
 import { audioService } from '@/services/audioService';
 import { initNotificationCleanup } from '@/utils/notificationCleanup';
 import { updateSchoolsData } from '@/utils/updateSchoolsData';
+import '@/utils/clearGeocodingCache'; // Importar para expor funções globalmente
 
 export const GuardianApp = () => {
   const navigate = useNavigate();

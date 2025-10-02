@@ -41,10 +41,18 @@ export const useDriverData = () => {
     if (savedStudents) {
       try {
         const parsedData = JSON.parse(savedStudents);
-        console.log('👨‍🎓 Estudantes carregados do localStorage:', parsedData);
-        return parsedData;
+        // Validar se é um array
+        if (Array.isArray(parsedData)) {
+          console.log('👨‍🎓 Estudantes carregados do localStorage:', parsedData);
+          return parsedData;
+        } else {
+          console.warn('⚠️ Dados de estudantes corrompidos no localStorage (não é array). Limpando...');
+          localStorage.removeItem('students');
+          return [];
+        }
       } catch (error) {
         console.error('Erro ao carregar dados dos estudantes:', error);
+        localStorage.removeItem('students');
       }
     }
     console.log('👨‍🎓 Nenhum estudante encontrado no localStorage');
@@ -227,7 +235,9 @@ export const useDriverData = () => {
     console.log(`📚 Criando novo aluno:`, newStudent);
     
     setStudents(prev => {
-      const updatedStudents = [...prev, newStudent];
+      // Garantir que prev é um array
+      const prevArray = Array.isArray(prev) ? prev : [];
+      const updatedStudents = [...prevArray, newStudent];
       console.log(`✅ Lista de alunos atualizada. Total: ${updatedStudents.length}`);
       return updatedStudents;
     });
@@ -334,7 +344,9 @@ export const useDriverData = () => {
     console.log(`🔄 Atualizando estudante ${studentData.name} com dropoffLocation: ${studentData.dropoffLocation}`);
     
     setStudents(prev => {
-      const updatedStudents = prev.map(student => 
+      // Garantir que prev é um array
+      const prevArray = Array.isArray(prev) ? prev : [];
+      const updatedStudents = prevArray.map(student => 
         student.id === studentId 
           ? {
               ...student,
@@ -357,7 +369,9 @@ export const useDriverData = () => {
 
   const toggleStudentDropoffType = (studentId: string) => {
     setStudents(prev => {
-      const updatedStudents = prev.map(student => 
+      // Garantir que prev é um array
+      const prevArray = Array.isArray(prev) ? prev : [];
+      const updatedStudents = prevArray.map(student => 
         student.id === studentId 
           ? {
               ...student,
@@ -375,8 +389,11 @@ export const useDriverData = () => {
   };
 
   const deleteStudent = (studentId: string) => {
-    const student = students.find(s => s.id === studentId);
-    setStudents(prev => prev.filter(student => student.id !== studentId));
+    const student = Array.isArray(students) ? students.find(s => s.id === studentId) : null;
+    setStudents(prev => {
+      const prevArray = Array.isArray(prev) ? prev : [];
+      return prevArray.filter(student => student.id !== studentId);
+    });
     console.log(`🗑️ Estudante removido: ${student?.name}`);
   };
 

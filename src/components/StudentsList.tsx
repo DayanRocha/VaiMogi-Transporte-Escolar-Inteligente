@@ -86,7 +86,7 @@ export const StudentsList = ({ students, schools, onBack, onAddStudent, onEditSt
       </div>
 
       <div className="container-responsive py-6">
-        {students.length === 0 ? (
+        {!Array.isArray(students) || students.length === 0 ? (
           <EmptyStudents onAction={onAddStudent} />
         ) : (
           <div className="space-y-4 max-w-md mx-auto">

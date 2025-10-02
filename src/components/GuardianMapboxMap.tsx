@@ -6,6 +6,7 @@ import { Student, School } from '@/types/driver';
 import { useMapboxMap } from '../hooks/useMapboxMap';
 import { MapQualityIndicator } from './MapQualityIndicator';
 import { RealTimeIndicator } from './RealTimeIndicator';
+import { mapboxDirectionsService } from '@/services/mapboxDirectionsService';
 
 // Configure o token do Mapbox usando a variável de ambiente do Vite
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
@@ -41,6 +42,27 @@ function GuardianMapboxMap({
   mapQuality,
   onMapQualityChange
 }: GuardianMapboxMapProps) {
+  console.log('🗺️ GuardianMapboxMap: Props recebidas:', {
+    students: students?.length || 0,
+    schools: schools?.length || 0,
+    driverLocation: !!driverLocation,
+    activeRoute: !!activeRoute
+  });
+  
+  if (schools && schools.length > 0) {
+    console.log('🏫 GuardianMapboxMap: Escolas recebidas:', schools.map(s => ({
+      id: s.id,
+      name: s.name,
+      address: s.address,
+      lat: s.latitude,
+      lng: s.longitude,
+      temCoordenadas: !!(s.latitude && s.longitude),
+      coordenadasValidas: s.latitude && s.longitude && 
+        s.latitude >= -25 && s.latitude <= -20 &&
+        s.longitude >= -50 && s.longitude <= -44
+    })));
+  }
+  
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const driverMarker = useRef<mapboxgl.Marker | null>(null);
@@ -104,8 +126,84 @@ function GuardianMapboxMap({
     setMapZoom
   } = useMapboxMap({ driverLocation, students, schools });
 
+  // Estado para armazenar a rota de navegação
+  const [navigationRoute, setNavigationRoute] = useState<any>(null);
+
   // Estados locais para controle do mapa
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+  
+  // Estado para controlar se deve seguir o motorista automaticamente
+  const [isFollowingDriver, setIsFollowingDriver] = useState(true);
+  const userInteractedRef = useRef(false);
+
+  // Resetar estado de seguimento quando rota mudar
+  useEffect(() => {
+    if (activeRoute && activeRoute.status === 'active') {
+      setIsFollowingDriver(true);
+      userInteractedRef.current = false;
+      console.log('🎯 Nova rota ativa - ativando seguimento do motorista');
+    }
+  }, [activeRoute?.id]);
+
+  // Buscar rota de navegação quando houver rota ativa
+  useEffect(() => {
+    const fetchNavigationRoute = async () => {
+      if (!activeRoute || activeRoute.status !== 'active' || !driverLocation) {
+        setNavigationRoute(null);
+        return;
+      }
+
+      console.log('🗺️ Buscando rota de navegação...');
+
+      // Montar waypoints: motorista -> estudantes -> escolas
+      const waypoints = [];
+
+      // 1. Localização atual do motorista
+      waypoints.push({
+        longitude: driverLocation.longitude,
+        latitude: driverLocation.latitude,
+        name: 'Motorista'
+      });
+
+      // 2. Localizações dos estudantes
+      studentsWithCoords.forEach(student => {
+        if (student.latitude && student.longitude) {
+          waypoints.push({
+            longitude: student.longitude,
+            latitude: student.latitude,
+            name: student.name
+          });
+        }
+      });
+
+      // 3. Localizações das escolas
+      schoolsWithCoords.forEach(school => {
+        if (school.latitude && school.longitude) {
+          waypoints.push({
+            longitude: school.longitude,
+            latitude: school.latitude,
+            name: school.name
+          });
+        }
+      });
+
+      console.log('🗺️ Waypoints para navegação:', waypoints.length);
+
+      if (waypoints.length < 2) {
+        console.warn('⚠️ Não há waypoints suficientes para calcular rota');
+        return;
+      }
+
+      const route = await mapboxDirectionsService.getRoute(waypoints, 'driving-traffic');
+      
+      if (route) {
+        setNavigationRoute(route);
+        console.log('✅ Rota de navegação carregada');
+      }
+    };
+
+    fetchNavigationRoute();
+  }, [activeRoute, driverLocation, studentsWithCoords, schoolsWithCoords]);
 
   // Inicializar studentMarkers como array vazio
   const studentMarkers = useRef<mapboxgl.Marker[]>([]);
@@ -237,6 +335,19 @@ function GuardianMapboxMap({
     map.current.on('rotatestart', onInteractStart);
     map.current.on('rotateend', onInteractEnd);
 
+    // Detectar quando usuário move o mapa manualmente (para parar de seguir motorista)
+    const handleUserInteraction = () => {
+      if (isFollowingDriver) {
+        console.log('👆 Usuário moveu o mapa - parando de seguir motorista');
+        setIsFollowingDriver(false);
+        userInteractedRef.current = true;
+      }
+    };
+
+    map.current.on('dragstart', handleUserInteraction);
+    map.current.on('zoomstart', handleUserInteraction);
+    map.current.on('pitchstart', handleUserInteraction);
+
     return () => {
       if (map.current) {
         // Limpar eventos
@@ -261,29 +372,31 @@ function GuardianMapboxMap({
     };
   }, [mapCenter, mapZoom, getMapStyle, mapQuality, onInteractStart, onInteractEnd]);
 
-  // Abertura do mapa quando houver rota ativa (sem recriar mapa)
+  // Centralização inicial do mapa (apenas uma vez quando carrega)
+  const hasInitializedRef = useRef(false);
+  
   useEffect(() => {
-    if (!map.current) return;
-    if (!activeRoute || activeRoute.status !== 'active') return;
+    if (!map.current || !isMapLoaded) return;
+    if (hasInitializedRef.current) return; // Já inicializou, não fazer nada
+
+    console.log('🎯 Inicializando posição do mapa (primeira vez)');
 
     // Calcular bounds para incluir todos os pontos relevantes
     const calculateBounds = () => {
       const bounds = new mapboxgl.LngLatBounds();
+      let hasPoints = false;
       
       // Adicionar localização do motorista
       if (driverLocation) {
         bounds.extend([driverLocation.longitude, driverLocation.latitude]);
-      }
-      
-      // Adicionar coordenadas da rota
-      if (activeRoute.coordinates && activeRoute.coordinates.length > 0) {
-        activeRoute.coordinates.forEach(coord => bounds.extend(coord));
+        hasPoints = true;
       }
       
       // Adicionar localizações dos estudantes
       memoizedStudentsWithCoords.forEach(student => {
         if (student.latitude && student.longitude) {
           bounds.extend([student.longitude, student.latitude]);
+          hasPoints = true;
         }
       });
       
@@ -291,86 +404,75 @@ function GuardianMapboxMap({
       memoizedSchoolsWithCoords.forEach(school => {
         if (school.latitude && school.longitude) {
           bounds.extend([school.longitude, school.latitude]);
+          hasPoints = true;
         }
       });
       
-      return bounds;
+      return hasPoints ? bounds : null;
     };
 
-    // Centralizar para mostrar todos os pontos apenas na primeira vez
-    if (!lastDriverLngLatRef.current) {
-      const bounds = calculateBounds();
+    // Se há rota ativa, centralizar no motorista (modo navegação)
+    if (activeRoute && activeRoute.status === 'active' && driverLocation) {
+      console.log('🎯 Centralizando no motorista (primeira vez)');
       
-      if (!bounds.isEmpty()) {
-        map.current.fitBounds(bounds, {
-          padding: { top: 50, bottom: 50, left: 50, right: 50 },
-          maxZoom: 16,
-          duration: 1500
-        });
-        console.log('🎯 Centralização inicial para mostrar todos os marcadores');
-      } else if (driverLocation) {
-        // Fallback: centralizar apenas no motorista se não houver outros pontos
-        const initialPosition: [number, number] = [driverLocation.longitude, driverLocation.latitude];
-        map.current.flyTo({
-          center: initialPosition,
-          zoom: 15,
-          duration: 1000
-        });
-        console.log('🎯 Centralização inicial no motorista (fallback)');
-      }
+      map.current.flyTo({
+        center: [driverLocation.longitude, driverLocation.latitude],
+        zoom: 16,
+        pitch: 45,
+        bearing: driverLocation.heading || 0,
+        duration: 1500
+      });
       
-      if (driverLocation) {
-        lastDriverLngLatRef.current = [driverLocation.longitude, driverLocation.latitude];
-      }
+      hasInitializedRef.current = true;
+      return;
     }
 
-    // Criar marcador do motorista ao abrir se não existir
-    if (driverLocation && !driverMarker.current) {
-      const el = document.createElement('div');
-      el.className = 'driver-marker-static';
-      el.style.cssText = `
-        width: 44px;
-        height: 44px;
-        background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-        border: 3px solid white;
-        border-radius: 50%;
-        box-shadow: 0 4px 16px rgba(107, 114, 128, 0.4);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-        transition: all 0.3s ease;
-        z-index: 1000;
-      `;
-      el.innerHTML = '🚌';
-
-      const popup = new mapboxgl.Popup({
-        offset: 25,
-        closeButton: false,
-        closeOnClick: false
-      }).setHTML(`
-        <div style="padding: 8px;">
-          <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">🚌 Motorista</div>
-          <div style="font-size: 12px; color: #374151;">
-            <div><strong>Última atualização:</strong> ${formatTime(driverLocation.timestamp)}</div>
-            ${driverLocation.speed !== undefined ? `<div><strong>Velocidade:</strong> ${driverLocation.speed.toFixed(1)} km/h</div>` : ''}
-            ${driverLocation.accuracy !== undefined ? `<div><strong>Precisão:</strong> ±${Math.round(driverLocation.accuracy)}m</div>` : ''}
-            <div style="margin-top: 4px; padding: 2px 6px; background: #6b7280; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
-              📍 Localização Estática
-            </div>
-          </div>
-        </div>
-      `);
-
-      driverMarker.current = new mapboxgl.Marker(el)
-        .setLngLat([driverLocation.longitude, driverLocation.latitude])
-        .setPopup(popup)
-        .addTo(map.current);
-
-      console.log('🚌 Marcador do motorista criado na abertura da rota');
+    // Se não há rota ativa, mostrar todos os pontos
+    const bounds = calculateBounds();
+    
+    if (bounds && !bounds.isEmpty()) {
+      console.log('🎯 Mostrando todos os marcadores (primeira vez)');
+      
+      map.current.fitBounds(bounds, {
+        padding: { top: 100, bottom: 100, left: 100, right: 100 },
+        maxZoom: 14,
+        pitch: 0,
+        duration: 2000
+      });
+      hasInitializedRef.current = true;
+    } else if (driverLocation) {
+      map.current.flyTo({
+        center: [driverLocation.longitude, driverLocation.latitude],
+        zoom: 15,
+        duration: 1000
+      });
+      hasInitializedRef.current = true;
+    } else if (memoizedSchoolsWithCoords.length > 0) {
+      const firstSchool = memoizedSchoolsWithCoords[0];
+      map.current.flyTo({
+        center: [firstSchool.longitude, firstSchool.latitude],
+        zoom: 14,
+        duration: 1500
+      });
+      hasInitializedRef.current = true;
     }
-  }, [activeRoute, driverLocation, formatTime]);
+  }, [isMapLoaded, driverLocation, activeRoute, memoizedStudentsWithCoords, memoizedSchoolsWithCoords]);
+
+  // Seguir motorista em tempo real quando há rota ativa (apenas se isFollowingDriver = true)
+  useEffect(() => {
+    if (!map.current || !isMapLoaded) return;
+    if (!activeRoute || activeRoute.status !== 'active' || !driverLocation) return;
+    if (!isFollowingDriver) return; // Não seguir se usuário desativou
+
+    // Atualizar posição do mapa suavemente para seguir o motorista
+    console.log('🚗 Seguindo motorista em tempo real');
+    
+    map.current.easeTo({
+      center: [driverLocation.longitude, driverLocation.latitude],
+      bearing: driverLocation.heading || 0,
+      duration: 1000 // Transição suave de 1 segundo
+    });
+  }, [driverLocation, activeRoute, isMapLoaded, isFollowingDriver]);
 
   // Atualizar estilo do mapa quando a qualidade mudar
   useEffect(() => {
@@ -527,9 +629,9 @@ function GuardianMapboxMap({
   useEffect(() => {
     if (!map.current) return;
     
-    // Só exibir marcadores quando há rota ativa
-    if (!activeRoute || activeRoute.status !== 'active') {
-      // Remover todos os marcadores quando não há rota ativa
+    // Sempre exibir marcadores de estudantes, independente de rota ativa
+    if (memoizedStudentsWithCoords.length === 0) {
+      // Remover todos os marcadores quando não há estudantes
       studentMarkers.current.forEach(marker => marker.remove());
       studentMarkers.current = [];
       return;
@@ -673,11 +775,23 @@ function GuardianMapboxMap({
 
   // Marcadores das escolas - estáveis (atualiza/recicla em vez de recriar tudo)
   useEffect(() => {
-    if (!map.current) return;
+    console.log('🏫 DEBUG: ========== INÍCIO useEffect ESCOLAS ==========');
+    console.log('🏫 DEBUG: map.current existe?', !!map.current);
+    console.log('🏫 DEBUG: isMapLoaded?', isMapLoaded);
+    console.log('🏫 DEBUG: memoizedSchoolsWithCoords:', memoizedSchoolsWithCoords);
+    console.log('🏫 DEBUG: Quantidade de escolas com coordenadas:', memoizedSchoolsWithCoords.length);
     
-    // Só exibir marcadores quando há rota ativa
-    if (!activeRoute || activeRoute.status !== 'active') {
-      // Remover todos os marcadores quando não há rota ativa
+    if (!map.current) {
+      console.log('❌ DEBUG: map.current não existe, saindo...');
+      return;
+    }
+    
+    // Sempre exibir marcadores de escolas, independente de rota ativa
+    if (memoizedSchoolsWithCoords.length === 0) {
+      console.log('⚠️ DEBUG: Nenhuma escola com coordenadas válidas');
+      console.log('⚠️ DEBUG: Escolas originais:', schools);
+      console.log('⚠️ DEBUG: schoolsWithCoords:', schoolsWithCoords);
+      // Remover todos os marcadores quando não há escolas
       for (const [id, marker] of schoolMarkersMapRef.current.entries()) {
         marker.remove();
         schoolMarkersMapRef.current.delete(id);
@@ -685,10 +799,29 @@ function GuardianMapboxMap({
       return;
     }
 
+    console.log('✅ DEBUG: Processando', memoizedSchoolsWithCoords.length, 'escolas');
     const currentIds = new Set<string>();
 
     memoizedSchoolsWithCoords.forEach(school => {
-      if (!school.latitude || !school.longitude) return;
+      console.log('🏫 DEBUG: ===== Processando escola:', school.name, '=====');
+      console.log('🏫 DEBUG: Coordenadas:', { lat: school.latitude, lng: school.longitude });
+      console.log('🏫 DEBUG: Endereço:', school.address);
+      
+      if (!school.latitude || !school.longitude) {
+        console.log('⚠️ DEBUG: Escola SEM coordenadas:', school.name);
+        return;
+      }
+      
+      // Validar se coordenadas estão na região correta
+      const isValidRegion = school.latitude >= -25 && school.latitude <= -20 &&
+                           school.longitude >= -50 && school.longitude <= -44;
+      
+      if (!isValidRegion) {
+        console.log('❌ DEBUG: Coordenadas FORA da região válida:', school.name, { lat: school.latitude, lng: school.longitude });
+        return;
+      }
+      
+      console.log('✅ DEBUG: Escola tem coordenadas VÁLIDAS:', school.name);
       currentIds.add(school.id);
 
       let marker = schoolMarkersMapRef.current.get(school.id);
@@ -712,135 +845,306 @@ function GuardianMapboxMap({
       `;
 
       if (!marker) {
+        console.log('🏫 DEBUG: Criando NOVO marcador para escola:', school.name, 'em', [school.longitude, school.latitude]);
+        console.log('🏫 DEBUG: map.current existe?', !!map.current);
+        
         const el = document.createElement('div');
         el.className = 'school-marker';
         el.style.cssText = `
-          width: 32px;
-          height: 32px;
-          background: linear-gradient(135deg, #059669 0%, #047857 100%);
-          border: 3px solid white;
+          width: 50px;
+          height: 50px;
+          background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+          border: 4px solid white;
           border-radius: 50%;
-          box-shadow: 0 3px 12px rgba(5, 150, 105, 0.4);
+          box-shadow: 0 6px 20px rgba(249, 115, 22, 0.8);
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
-          font-size: 16px;
+          font-size: 28px;
           cursor: pointer;
           transition: all 0.2s ease;
+          z-index: 1000;
         `;
         el.innerHTML = '🏫';
+        
+        console.log('🏫 DEBUG: Elemento HTML criado:', el);
 
         const popup = new mapboxgl.Popup({ offset: 18 }).setHTML(popupHTML);
-        marker = new mapboxgl.Marker(el)
-          .setLngLat([school.longitude, school.latitude])
-          .setPopup(popup)
-          .addTo(map.current!);
-        schoolMarkersMapRef.current.set(school.id, marker);
+        
+        try {
+          marker = new mapboxgl.Marker(el)
+            .setLngLat([school.longitude, school.latitude])
+            .setPopup(popup)
+            .addTo(map.current!);
+          
+          schoolMarkersMapRef.current.set(school.id, marker);
+          
+          console.log('✅ DEBUG: Marcador da escola criado e adicionado ao mapa:', school.name);
+          console.log('✅ DEBUG: Marcador adicionado ao DOM?', document.querySelector('.school-marker') !== null);
+          console.log('✅ DEBUG: Total de .school-marker no DOM:', document.querySelectorAll('.school-marker').length);
+        } catch (error) {
+          console.error('❌ DEBUG: Erro ao criar marcador da escola:', error);
+        }
       } else {
+        console.log('🔄 DEBUG: Atualizando marcador existente para escola:', school.name);
         marker.setLngLat([school.longitude, school.latitude]);
         marker.getPopup()?.setHTML(popupHTML);
       }
     });
 
     // Remover marcadores de escolas que não estão mais presentes
+    console.log('🏫 DEBUG: IDs atuais de escolas:', Array.from(currentIds));
+    console.log('🏫 DEBUG: IDs no mapa:', Array.from(schoolMarkersMapRef.current.keys()));
+    
     for (const [id, marker] of schoolMarkersMapRef.current.entries()) {
       if (!currentIds.has(id)) {
+        console.log('🗑️ DEBUG: Removendo marcador de escola que não está mais presente:', id);
         marker.remove();
         schoolMarkersMapRef.current.delete(id);
       }
     }
-  }, [memoizedSchoolsWithCoords, activeRoute]);
+    
+    console.log('🏫 DEBUG: Total de marcadores de escolas no mapa:', schoolMarkersMapRef.current.size);
+    console.log('🏫 DEBUG: Total de .school-marker no DOM:', document.querySelectorAll('.school-marker').length);
+  }, [memoizedSchoolsWithCoords, activeRoute, students]);
 
-  // Gerenciar rota ativa com atualização incremental (evita remover/adicionar toda vez)
+  // Renderizar rota de navegação no mapa
   useEffect(() => {
-    if (!map.current || !activeRoute) return;
+    if (!map.current || !isMapLoaded) return;
 
-    const routeId = 'active-route';
+    const routeLayerId = 'navigation-route';
+    const routeSourceId = 'navigation-route-source';
 
-    const addOrUpdateRoute = () => {
-      if (!map.current) return;
-      const source = map.current.getSource(routeId) as mapboxgl.GeoJSONSource | undefined;
-      const data = createGeoJSONFeature(activeRoute.coordinates);
+    // Remover rota anterior se existir
+    if (map.current.getLayer(routeLayerId)) {
+      map.current.removeLayer(routeLayerId);
+    }
+    if (map.current.getLayer(`${routeLayerId}-border`)) {
+      map.current.removeLayer(`${routeLayerId}-border`);
+    }
+    if (map.current.getSource(routeSourceId)) {
+      map.current.removeSource(routeSourceId);
+    }
 
-      if (source) {
-        source.setData(data as any);
-      } else {
-        map.current.addSource(routeId, {
-          type: 'geojson',
-          data
-        });
+    // Se não há rota de navegação, sair
+    if (!navigationRoute) {
+      console.log('⚠️ Nenhuma rota de navegação para renderizar');
+      return;
+    }
 
-        if (!map.current.getLayer(routeId)) {
-          map.current.addLayer({
-            id: routeId,
-            type: 'line',
-            source: routeId,
-            layout: {
-              'line-join': 'round',
-              'line-cap': 'round'
-            },
-            paint: {
-              'line-color': activeRoute.status === 'active' ? '#22c55e' : '#6b7280',
-              'line-width': 4,
-              'line-opacity': 0.8
-            }
-          });
+    console.log('🗺️ Renderizando rota de navegação no mapa');
+
+    try {
+      // Adicionar source com a geometria da rota
+      map.current.addSource(routeSourceId, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: navigationRoute.geometry
         }
-      }
-    };
+      });
 
-    if (map.current.isStyleLoaded()) {
-      addOrUpdateRoute();
-    } else {
-      map.current.on('style.load', addOrUpdateRoute);
+      // Adicionar layer de borda (sombra) para a rota
+      map.current.addLayer({
+        id: `${routeLayerId}-border`,
+        type: 'line',
+        source: routeSourceId,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#000000', // Preto para borda
+          'line-width': 12, // Mais largo que a linha principal
+          'line-opacity': 0.3 // Semi-transparente para efeito de sombra
+        }
+      });
+
+      // Adicionar layer principal da rota
+      map.current.addLayer({
+        id: routeLayerId,
+        type: 'line',
+        source: routeSourceId,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#f97316', // Laranja (padrão do app)
+          'line-width': 8, // Mais largo para melhor visibilidade
+          'line-opacity': 0.95 // Quase opaco para melhor visibilidade
+        }
+      });
+
+      console.log('✅ Rota de navegação renderizada:', {
+        distance: mapboxDirectionsService.formatDistance(navigationRoute.distance),
+        duration: mapboxDirectionsService.formatDuration(navigationRoute.duration)
+      });
+    } catch (error) {
+      console.error('❌ Erro ao renderizar rota de navegação:', error);
     }
 
     return () => {
-      if (!map.current) return;
-      map.current.off('style.load', addOrUpdateRoute);
+      // Cleanup ao desmontar
+      if (map.current) {
+        if (map.current.getLayer(routeLayerId)) {
+          map.current.removeLayer(routeLayerId);
+        }
+        if (map.current.getLayer(`${routeLayerId}-border`)) {
+          map.current.removeLayer(`${routeLayerId}-border`);
+        }
+        if (map.current.getSource(routeSourceId)) {
+          map.current.removeSource(routeSourceId);
+        }
+      }
     };
-  }, [activeRoute, createGeoJSONFeature]);
+  }, [navigationRoute, isMapLoaded]);
+
+
+
+  // Função para voltar a seguir o motorista
+  const followDriver = useCallback(() => {
+    if (!map.current || !driverLocation) return;
+    
+    console.log('🎯 Voltando a seguir motorista');
+    setIsFollowingDriver(true);
+    userInteractedRef.current = false;
+    
+    // Centralizar no motorista imediatamente
+    map.current.flyTo({
+      center: [driverLocation.longitude, driverLocation.latitude],
+      zoom: 16,
+      pitch: 45,
+      bearing: driverLocation.heading || 0,
+      duration: 1500
+    });
+  }, [driverLocation]);
+
+  // Função para recentralizar o mapa (ver todos os pontos)
+  const recenterMap = useCallback(() => {
+    if (!map.current) return;
+    
+    console.log('🎯 Mostrando todos os pontos');
+    setIsFollowingDriver(false); // Parar de seguir motorista
+    
+    const bounds = new mapboxgl.LngLatBounds();
+    let hasPoints = false;
+    
+    // Adicionar localização do motorista
+    if (driverLocation) {
+      bounds.extend([driverLocation.longitude, driverLocation.latitude]);
+      hasPoints = true;
+    }
+    
+    // Adicionar localizações dos estudantes
+    studentsWithCoords.forEach(student => {
+      if (student.latitude && student.longitude) {
+        bounds.extend([student.longitude, student.latitude]);
+        hasPoints = true;
+      }
+    });
+    
+    // Adicionar localizações das escolas
+    schoolsWithCoords.forEach(school => {
+      if (school.latitude && school.longitude) {
+        bounds.extend([school.longitude, school.latitude]);
+        hasPoints = true;
+      }
+    });
+    
+    if (hasPoints && !bounds.isEmpty()) {
+      map.current.fitBounds(bounds, {
+        padding: { top: 120, bottom: 120, left: 120, right: 120 },
+        maxZoom: 13,
+        pitch: 0, // Visão plana
+        duration: 1500
+      });
+      console.log('🎯 Mapa recentralizado para ver tudo');
+    }
+  }, [driverLocation, studentsWithCoords, schoolsWithCoords]);
 
   return (
     <div className="relative w-full h-full">
-      {/* Renderização condicional: mapa OU overlay */}
-      {activeRoute && activeRoute.status === 'active' ? (
-        <>
-          {/* Container do mapa - apenas quando há rota ativa */}
-          <div 
-            ref={mapContainer} 
-            className="mapbox-map w-full h-full"
-            style={{ minHeight: '400px' }}
-          />
+      {/* Container do mapa - SEMPRE renderizado */}
+      <div 
+        ref={mapContainer} 
+        className="mapbox-map w-full h-full"
+        style={{ minHeight: '400px' }}
+      />
 
-          {/* Controles do mapa */}
-          <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-            <MapQualityIndicator quality={mapQuality} onQualityChange={onMapQualityChange} />
-            <RealTimeIndicator />
-          </div>
-        </>
-      ) : (
-        /* Overlay informativo quando NÃO há rota ativa */
-        <div className="w-full h-full flex items-center justify-center p-6 bg-gray-50">
-          <div className="bg-white rounded-lg p-8 shadow-lg max-w-lg text-center border border-gray-200">
-            <div className="mb-4">
-              <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Controles do mapa */}
+      <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
+        <MapQualityIndicator quality={mapQuality} onQualityChange={onMapQualityChange} />
+        {activeRoute && activeRoute.status === 'active' && <RealTimeIndicator />}
+        
+        {/* Botões de navegação */}
+        {activeRoute && activeRoute.status === 'active' && driverLocation && (
+          <>
+            {/* Botão para seguir motorista (aparece quando NÃO está seguindo) */}
+            {!isFollowingDriver && (
+              <button
+                onClick={followDriver}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded-lg shadow-lg border border-blue-700 transition-all duration-200 flex items-center gap-2 text-sm"
+                title="Seguir motorista"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Seguir Motorista
+              </button>
+            )}
+            
+            {/* Indicador de que está seguindo */}
+            {isFollowingDriver && (
+              <div className="bg-blue-600 text-white font-medium py-2 px-3 rounded-lg shadow-lg border border-blue-700 flex items-center gap-2 text-sm">
+                <svg className="w-4 h-4 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" />
+                </svg>
+                Seguindo
+              </div>
+            )}
+          </>
+        )}
+        
+        {/* Botão para ver tudo */}
+        <button
+          onClick={recenterMap}
+          className="bg-white hover:bg-gray-50 text-gray-700 font-medium py-2 px-3 rounded-lg shadow-lg border border-gray-200 transition-all duration-200 flex items-center gap-2 text-sm"
+          title="Mostrar todos os marcadores"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Ver Tudo
+        </button>
+      </div>
+
+
+
+      {/* Overlay informativo quando NÃO há rota ativa */}
+      {!activeRoute || activeRoute.status !== 'active' ? (
+        <div className="absolute inset-0 flex items-center justify-center p-6 bg-gray-900/50 backdrop-blur-sm pointer-events-none z-20">
+          <div className="bg-white rounded-lg p-6 shadow-lg max-w-md text-center border border-gray-200 pointer-events-auto">
+            <div className="mb-3">
+              <div className="w-12 h-12 mx-auto mb-3 bg-blue-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
             </div>
-            <h2 className="text-xl font-semibold mb-3 text-gray-800">Aguardando próxima rota</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Não há rota ativa no momento. O mapa será exibido quando uma nova rota for iniciada.
+            <h2 className="text-lg font-semibold mb-2 text-gray-800">Aguardando próxima rota</h2>
+            <p className="text-sm text-gray-600 mb-3">
+              Não há rota ativa no momento. O mapa mostra as localizações cadastradas.
             </p>
-            <div className="text-xs text-gray-500 bg-gray-100 rounded-lg p-3">
+            <div className="text-xs text-gray-500 bg-gray-100 rounded-lg p-2">
               <strong>Status:</strong> Aguardando definição de rota
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

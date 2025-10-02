@@ -23,93 +23,204 @@ interface UseMapboxMapProps {
 }
 
 export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMapProps) => {
+  console.log('🗺️ useMapboxMap: Recebendo dados:', {
+    students: students.length,
+    schools: schools.length,
+    driverLocation: !!driverLocation
+  });
+  
   const [mapCenter, setMapCenter] = useState<[number, number]>([
     -46.6333, -23.5505 // São Paulo como centro padrão (lng, lat para Mapbox)
   ]);
   const [mapZoom, setMapZoom] = useState(15); // Zoom inicial mais alto para mais detalhes
   const [geocodedStudents, setGeocodedStudents] = useState<Student[]>(students);
   const [geocodedSchools, setGeocodedSchools] = useState<School[]>(schools);
+  
+  // Cache de endereços já geocodificados (baseado no endereço, não em lat/lng)
+  const geocodedAddressCache = useMemo(() => new Map<string, { lat: number; lng: number }>(), []);
 
   // Hook de geocodificação
-  const { geocodeStudentAddress, geocodeSchoolAddress, isGeocoding } = useGeocoding();
+  const { geocodeStudentAddress, geocodeSchoolAddress } = useGeocoding();
 
-  // Geocodificar endereços de estudantes que não possuem coordenadas
+  // Geocodificar endereços de estudantes baseado no endereço cadastrado
   useEffect(() => {
     const geocodeStudents = async () => {
+      let hasChanges = false;
       const updatedStudents = await Promise.all(
         students.map(async (student) => {
-          // Se já tem coordenadas válidas, retorna o estudante como está
-          if (student.latitude && student.longitude && 
-              typeof student.latitude === 'number' &&
-              typeof student.longitude === 'number' &&
-              !isNaN(student.latitude) && 
-              !isNaN(student.longitude) &&
-              student.latitude !== 0 &&
-              student.longitude !== 0) {
+          if (!student.address || student.address.trim().length === 0) {
+            console.warn('⚠️ Estudante sem endereço:', student.name);
             return student;
           }
 
-          // Se tem endereço mas não tem coordenadas, geocodifica
-          if (student.address && student.address.trim().length > 0) {
-            console.log('🔍 Geocodificando endereço do estudante:', student.name, student.address);
-            const coordinates = await geocodeStudentAddress(student.id, student.address);
-            if (coordinates) {
-              console.log('✅ Coordenadas obtidas para estudante:', student.name, coordinates);
+          const addressKey = student.address.trim().toLowerCase();
+          
+          // Verificar se já temos coordenadas válidas para este endereço específico
+          const hasValidCoordsForAddress = student.latitude && student.longitude &&
+            typeof student.latitude === 'number' &&
+            typeof student.longitude === 'number' &&
+            !isNaN(student.latitude) && 
+            !isNaN(student.longitude) &&
+            student.latitude >= -25 && student.latitude <= -20 &&
+            student.longitude >= -54 && student.longitude <= -44;
+
+          if (hasValidCoordsForAddress) {
+            console.log('✅ Estudante já tem coordenadas válidas para o endereço:', student.name, { lat: student.latitude, lng: student.longitude });
+            // Adicionar ao cache
+            geocodedAddressCache.set(addressKey, { lat: student.latitude, lng: student.longitude });
+            return student;
+          }
+
+          // Verificar cache de endereços
+          const cachedCoords = geocodedAddressCache.get(addressKey);
+          if (cachedCoords) {
+            console.log('✅ Usando coordenadas do cache para estudante:', student.name);
+            hasChanges = true;
+            return {
+              ...student,
+              latitude: cachedCoords.lat,
+              longitude: cachedCoords.lng
+            };
+          }
+
+          // Geocodificar o endereço
+          console.log('🔍 Geocodificando endereço do estudante:', student.name, student.address);
+          
+          const coordinates = await geocodeStudentAddress(student.id, student.address);
+          if (coordinates) {
+            const lat = coordinates[1];
+            const lng = coordinates[0];
+            
+            // Validar coordenadas obtidas (região mais ampla para SP)
+            if (lat >= -25 && lat <= -20 && lng >= -54 && lng <= -44) {
+              console.log('✅ Coordenadas VÁLIDAS obtidas para estudante:', student.name, { lat, lng, endereço: student.address });
+              
+              // Adicionar ao cache
+              geocodedAddressCache.set(addressKey, { lat, lng });
+              
+              hasChanges = true;
               return {
                 ...student,
-                latitude: coordinates[1], // lat
-                longitude: coordinates[0] // lng
+                latitude: lat,
+                longitude: lng
               };
+            } else {
+              console.error('❌ Coordenadas INVÁLIDAS obtidas (fora da região SP):', student.name, { lat, lng, endereço: student.address });
+              console.error('💡 Verifique se o endereço está correto:', student.address);
             }
+          } else {
+            console.warn('⚠️ Não foi possível geocodificar estudante:', student.name, student.address);
           }
 
           return student;
         })
       );
+      
       setGeocodedStudents(updatedStudents);
+      
+      // Salvar coordenadas geocodificadas no localStorage
+      if (hasChanges) {
+        try {
+          localStorage.setItem('students', JSON.stringify(updatedStudents));
+          console.log('💾 Coordenadas dos estudantes salvas no localStorage');
+        } catch (error) {
+          console.error('❌ Erro ao salvar coordenadas dos estudantes:', error);
+        }
+      }
     };
 
     geocodeStudents();
-  }, [students, geocodeStudentAddress]);
+  }, [students, geocodeStudentAddress, geocodedAddressCache]);
 
-  // Geocodificar endereços de escolas que não possuem coordenadas
+  // Geocodificar endereços de escolas baseado no endereço cadastrado
   useEffect(() => {
     const geocodeSchools = async () => {
+      let hasChanges = false;
       const updatedSchools = await Promise.all(
         schools.map(async (school) => {
-          // Se já tem coordenadas válidas, retorna a escola como está
-          if (school.latitude && school.longitude && 
-              typeof school.latitude === 'number' &&
-              typeof school.longitude === 'number' &&
-              !isNaN(school.latitude) && 
-              !isNaN(school.longitude) &&
-              school.latitude !== 0 &&
-              school.longitude !== 0) {
+          if (!school.address || school.address.trim().length === 0) {
+            console.warn('⚠️ Escola sem endereço:', school.name);
             return school;
           }
 
-          // Se tem endereço mas não tem coordenadas, geocodifica
-          if (school.address && school.address.trim().length > 0) {
-            console.log('🔍 Geocodificando endereço da escola:', school.name, school.address);
-            const coordinates = await geocodeSchoolAddress(school.id, school.address);
-            if (coordinates) {
-              console.log('✅ Coordenadas obtidas para escola:', school.name, coordinates);
+          const addressKey = school.address.trim().toLowerCase();
+          
+          // Verificar se já temos coordenadas válidas para este endereço específico
+          const hasValidCoordsForAddress = school.latitude && school.longitude &&
+            typeof school.latitude === 'number' &&
+            typeof school.longitude === 'number' &&
+            !isNaN(school.latitude) && 
+            !isNaN(school.longitude) &&
+            school.latitude >= -25 && school.latitude <= -20 &&
+            school.longitude >= -50 && school.longitude <= -44;
+
+          if (hasValidCoordsForAddress) {
+            console.log('✅ Escola já tem coordenadas válidas para o endereço:', school.name, { lat: school.latitude, lng: school.longitude });
+            // Adicionar ao cache
+            geocodedAddressCache.set(addressKey, { lat: school.latitude, lng: school.longitude });
+            return school;
+          }
+
+          // Verificar cache de endereços
+          const cachedCoords = geocodedAddressCache.get(addressKey);
+          if (cachedCoords) {
+            console.log('✅ Usando coordenadas do cache para escola:', school.name);
+            hasChanges = true;
+            return {
+              ...school,
+              latitude: cachedCoords.lat,
+              longitude: cachedCoords.lng
+            };
+          }
+
+          // Geocodificar o endereço
+          console.log('🔍 Geocodificando endereço da escola:', school.name, school.address);
+          
+          const coordinates = await geocodeSchoolAddress(school.id, school.address);
+          if (coordinates) {
+            const lat = coordinates[1];
+            const lng = coordinates[0];
+            
+            // Validar coordenadas obtidas
+            if (lat >= -25 && lat <= -20 && lng >= -50 && lng <= -44) {
+              console.log('✅ Coordenadas VÁLIDAS obtidas para escola:', school.name, { lat, lng, endereço: school.address });
+              
+              // Adicionar ao cache
+              geocodedAddressCache.set(addressKey, { lat, lng });
+              
+              hasChanges = true;
               return {
                 ...school,
-                latitude: coordinates[1], // lat
-                longitude: coordinates[0] // lng
+                latitude: lat,
+                longitude: lng
               };
+            } else {
+              console.error('❌ Coordenadas INVÁLIDAS obtidas (fora da região SP):', school.name, { lat, lng, endereço: school.address });
+              console.error('💡 Verifique se o endereço está correto:', school.address);
             }
+          } else {
+            console.warn('⚠️ Não foi possível geocodificar escola:', school.name, school.address);
           }
 
           return school;
         })
       );
+      
       setGeocodedSchools(updatedSchools);
+      
+      // Salvar coordenadas geocodificadas no localStorage
+      if (hasChanges) {
+        try {
+          localStorage.setItem('schools', JSON.stringify(updatedSchools));
+          console.log('💾 Coordenadas das escolas salvas no localStorage');
+        } catch (error) {
+          console.error('❌ Erro ao salvar coordenadas das escolas:', error);
+        }
+      }
     };
 
     geocodeSchools();
-  }, [schools, geocodeSchoolAddress]);
+  }, [schools, geocodeSchoolAddress, geocodedAddressCache]);
 
   // Filtrar estudantes e escolas com coordenadas válidas (usando dados geocodificados)
   const studentsWithCoords = useMemo(() => (
@@ -121,7 +232,10 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
       !isNaN(student.latitude) && 
       !isNaN(student.longitude) &&
       student.latitude !== 0 &&
-      student.longitude !== 0
+      student.longitude !== 0 &&
+      // Validar região (São Paulo e arredores)
+      student.latitude >= -25 && student.latitude <= -20 &&
+      student.longitude >= -54 && student.longitude <= -44
     ) || []
   ), [geocodedStudents]);
 
@@ -134,7 +248,10 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
       !isNaN(school.latitude) && 
       !isNaN(school.longitude) &&
       school.latitude !== 0 &&
-      school.longitude !== 0
+      school.longitude !== 0 &&
+      // Validar região (São Paulo e arredores)
+      school.latitude >= -25 && school.latitude <= -20 &&
+      school.longitude >= -50 && school.longitude <= -44
     ) || []
   ), [geocodedSchools]);
 

@@ -1,280 +1,127 @@
-// Configuração do token do Mapbox
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZGF5YW5hcmF1am8iLCJhIjoiY2x6cGNhZGNzMGNhZzJqcGNqZGNqZGNqZCJ9.example';
+/**
+ * Serviço para buscar rotas usando a API de Directions do Mapbox
+ */
 
-export interface RouteWaypoint {
-  coordinates: [number, number]; // [longitude, latitude]
+interface DirectionsWaypoint {
+  longitude: number;
+  latitude: number;
   name?: string;
-  type: 'student' | 'school' | 'driver';
 }
 
-export interface OptimizedRoute {
+interface DirectionsRoute {
   geometry: {
     coordinates: [number, number][];
     type: 'LineString';
   };
-  legs: RouteLeg[];
-  distance: number; // meters
-  duration: number; // seconds
-  weight_name: string;
-  weight: number;
-}
-
-export interface RouteLeg {
-  distance: number;
-  duration: number;
-  steps: RouteStep[];
-  summary: string;
-}
-
-export interface RouteStep {
-  distance: number;
-  duration: number;
-  geometry: {
-    coordinates: [number, number][];
-    type: 'LineString';
-  };
-  name: string;
-  mode: string;
-  maneuver: {
-    bearing_after: number;
-    bearing_before: number;
-    location: [number, number];
-    modifier?: string;
-    type: string;
-    instruction: string;
-  };
-}
-
-export interface DirectionsResponse {
-  routes: OptimizedRoute[];
-  waypoints: {
-    hint: string;
+  duration: number; // em segundos
+  distance: number; // em metros
+  legs: Array<{
+    duration: number;
     distance: number;
+    steps: Array<{
+      maneuver: {
+        instruction: string;
+        type: string;
+        location: [number, number];
+      };
+      distance: number;
+      duration: number;
+    }>;
+  }>;
+}
+
+interface DirectionsResponse {
+  routes: DirectionsRoute[];
+  waypoints: Array<{
     name: string;
     location: [number, number];
-  }[];
+  }>;
   code: string;
-  uuid?: string;
-}
-
-export interface TrafficAwareRouteOptions {
-  profile?: 'driving' | 'driving-traffic' | 'walking' | 'cycling';
-  alternatives?: boolean;
-  steps?: boolean;
-  continue_straight?: boolean;
-  waypoint_snapping?: string[];
-  annotations?: string[];
-  language?: string;
-  overview?: 'full' | 'simplified' | 'false';
-  geometries?: 'geojson' | 'polyline' | 'polyline6';
 }
 
 class MapboxDirectionsService {
-  private baseUrl = 'https://api.mapbox.com/directions/v5/mapbox';
-  private accessToken = MAPBOX_TOKEN;
+  private accessToken: string;
+  private baseUrl = 'https://api.mapbox.com/directions/v5';
+
+  constructor() {
+    this.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '';
+    if (!this.accessToken) {
+      console.error('❌ Token do Mapbox não configurado');
+    }
+  }
 
   /**
-   * Calcula rota otimizada entre múltiplos pontos com consideração de tráfego
+   * Busca rota entre múltiplos pontos
    */
-  async calculateOptimizedRoute(
-    waypoints: RouteWaypoint[],
-    options: TrafficAwareRouteOptions = {}
-  ): Promise<OptimizedRoute | null> {
+  async getRoute(
+    waypoints: DirectionsWaypoint[],
+    profile: 'driving-traffic' | 'driving' | 'walking' | 'cycling' = 'driving-traffic'
+  ): Promise<DirectionsRoute | null> {
     try {
       if (waypoints.length < 2) {
-        throw new Error('Pelo menos 2 pontos são necessários para calcular uma rota');
-      }
-
-      const defaultOptions: TrafficAwareRouteOptions = {
-        profile: 'driving-traffic', // Usa dados de tráfego em tempo real
-        alternatives: true,
-        steps: true,
-        continue_straight: false,
-        annotations: ['duration', 'distance', 'speed'],
-        language: 'pt-BR',
-        overview: 'full',
-        geometries: 'geojson'
-      };
-
-      const finalOptions = { ...defaultOptions, ...options };
-      
-      // Formata coordenadas para a API
-      const coordinates = waypoints
-        .map(wp => `${wp.coordinates[0]},${wp.coordinates[1]}`)
-        .join(';');
-
-      // Constrói URL da API
-      const url = this.buildDirectionsUrl(coordinates, finalOptions);
-      
-      console.log('🗺️ Calculando rota otimizada:', {
-        waypoints: waypoints.length,
-        profile: finalOptions.profile,
-        url
-      });
-
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Erro na API Directions: ${response.status} ${response.statusText}`);
-      }
-
-      const data: DirectionsResponse = await response.json();
-      
-      if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
-        console.warn('⚠️ Nenhuma rota encontrada:', data);
+        console.error('❌ É necessário pelo menos 2 pontos para calcular rota');
         return null;
       }
 
-      // Retorna a melhor rota (primeira no array)
-      const bestRoute = data.routes[0];
-      
-      console.log('✅ Rota calculada com sucesso:', {
-        distance: `${(bestRoute.distance / 1000).toFixed(2)} km`,
-        duration: `${Math.round(bestRoute.duration / 60)} min`,
-        legs: bestRoute.legs.length
-      });
+      if (waypoints.length > 25) {
+        console.error('❌ Máximo de 25 pontos permitidos');
+        return null;
+      }
 
-      return bestRoute;
-    } catch (error) {
-      console.error('❌ Erro ao calcular rota:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Calcula múltiplas rotas alternativas
-   */
-  async calculateAlternativeRoutes(
-    waypoints: RouteWaypoint[],
-    options: TrafficAwareRouteOptions = {}
-  ): Promise<OptimizedRoute[]> {
-    try {
-      const routeOptions = {
-        ...options,
-        alternatives: true
-      };
-
+      // Formatar coordenadas: longitude,latitude;longitude,latitude
       const coordinates = waypoints
-        .map(wp => `${wp.coordinates[0]},${wp.coordinates[1]}`)
+        .map(wp => `${wp.longitude},${wp.latitude}`)
         .join(';');
 
-      const url = this.buildDirectionsUrl(coordinates, routeOptions);
-      const response = await fetch(url);
+      const url = `${this.baseUrl}/mapbox/${profile}/${coordinates}`;
       
+      const params = new URLSearchParams({
+        access_token: this.accessToken,
+        geometries: 'geojson',
+        overview: 'full',
+        steps: 'true',
+        alternatives: 'false',
+        continue_straight: 'false'
+      });
+
+      console.log('🗺️ Buscando rota do Mapbox:', {
+        profile,
+        waypoints: waypoints.length,
+        url: `${url}?${params}`
+      });
+
+      const response = await fetch(`${url}?${params}`);
+
       if (!response.ok) {
-        throw new Error(`Erro na API Directions: ${response.status}`);
+        console.error('❌ Erro na API de Directions:', response.status, response.statusText);
+        return null;
       }
 
       const data: DirectionsResponse = await response.json();
-      
-      if (data.code !== 'Ok' || !data.routes) {
-        return [];
+
+      if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+        console.error('❌ Nenhuma rota encontrada:', data);
+        return null;
       }
 
-      return data.routes;
-    } catch (error) {
-      console.error('❌ Erro ao calcular rotas alternativas:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Calcula rota otimizada para coleta de estudantes
-   */
-  async calculateSchoolRouteOptimized(
-    driverLocation: [number, number],
-    studentLocations: RouteWaypoint[],
-    schoolLocation: [number, number]
-  ): Promise<OptimizedRoute | null> {
-    try {
-      // Monta waypoints: motorista -> estudantes -> escola
-      const waypoints: RouteWaypoint[] = [
-        {
-          coordinates: driverLocation,
-          name: 'Motorista',
-          type: 'driver'
-        },
-        ...studentLocations,
-        {
-          coordinates: schoolLocation,
-          name: 'Escola',
-          type: 'school'
-        }
-      ];
-
-      return await this.calculateOptimizedRoute(waypoints, {
-        profile: 'driving-traffic',
-        alternatives: false,
-        steps: true
+      const route = data.routes[0];
+      
+      console.log('✅ Rota obtida com sucesso:', {
+        distance: `${(route.distance / 1000).toFixed(2)} km`,
+        duration: `${Math.round(route.duration / 60)} min`,
+        waypoints: data.waypoints.length,
+        coordinates: route.geometry.coordinates.length
       });
+
+      return route;
     } catch (error) {
-      console.error('❌ Erro ao calcular rota escolar:', error);
+      console.error('❌ Erro ao buscar rota:', error);
       return null;
     }
   }
 
   /**
-   * Recalcula rota em tempo real baseado na posição atual
-   */
-  async recalculateRoute(
-    currentPosition: [number, number],
-    remainingWaypoints: RouteWaypoint[]
-  ): Promise<OptimizedRoute | null> {
-    try {
-      const waypoints: RouteWaypoint[] = [
-        {
-          coordinates: currentPosition,
-          name: 'Posição Atual',
-          type: 'driver'
-        },
-        ...remainingWaypoints
-      ];
-
-      return await this.calculateOptimizedRoute(waypoints, {
-        profile: 'driving-traffic', // Sempre usa tráfego para recálculo
-        alternatives: false,
-        steps: true
-      });
-    } catch (error) {
-      console.error('❌ Erro ao recalcular rota:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Constrói URL da API Directions
-   */
-  private buildDirectionsUrl(
-    coordinates: string,
-    options: TrafficAwareRouteOptions
-  ): string {
-    const params = new URLSearchParams({
-      access_token: this.accessToken,
-      alternatives: options.alternatives ? 'true' : 'false',
-      steps: options.steps ? 'true' : 'false',
-      continue_straight: options.continue_straight ? 'true' : 'false',
-      overview: options.overview || 'full',
-      geometries: options.geometries || 'geojson'
-    });
-
-    if (options.annotations && options.annotations.length > 0) {
-      params.append('annotations', options.annotations.join(','));
-    }
-
-    if (options.language) {
-      params.append('language', options.language);
-    }
-
-    if (options.waypoint_snapping && options.waypoint_snapping.length > 0) {
-      params.append('waypoint_snapping', options.waypoint_snapping.join(';'));
-    }
-
-    const profile = options.profile || 'driving-traffic';
-    return `${this.baseUrl}/${profile}/${coordinates}?${params.toString()}`;
-  }
-
-  /**
-   * Converte duração em segundos para formato legível
+   * Formata duração em texto legível
    */
   formatDuration(seconds: number): string {
     const hours = Math.floor(seconds / 3600);
@@ -287,16 +134,14 @@ class MapboxDirectionsService {
   }
 
   /**
-   * Converte distância em metros para formato legível
+   * Formata distância em texto legível
    */
   formatDistance(meters: number): string {
-    if (meters >= 1000) {
-      return `${(meters / 1000).toFixed(1)} km`;
+    if (meters < 1000) {
+      return `${Math.round(meters)}m`;
     }
-    return `${Math.round(meters)} m`;
+    return `${(meters / 1000).toFixed(1)}km`;
   }
 }
 
-export { MapboxDirectionsService };
 export const mapboxDirectionsService = new MapboxDirectionsService();
-export default mapboxDirectionsService;
