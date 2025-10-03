@@ -685,7 +685,13 @@ function GuardianMapboxMap({
               <div style="padding: 8px;">
                 <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">👨‍🎓 ${student.name}</div>
                 <div style="font-size: 12px; color: #374151;">
-                  <div><strong>Endereço:</strong> ${student.address}</div>
+                  <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                      <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                    <strong>Endereço:</strong> ${student.address}
+                  </div>
                   <div><strong>Ponto de Coleta:</strong> ${student.pickupPoint}</div>
                   ${studentSchool ? `<div><strong>Escola:</strong> ${studentSchool.name}</div>` : ''}
                   <div><strong>Responsável:</strong> ${student.guardianPhone}</div>
@@ -746,7 +752,13 @@ function GuardianMapboxMap({
         <div style="padding: 8px;">
           <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">👨‍🎓 ${student.name}</div>
           <div style="font-size: 12px; color: #374151;">
-            <div><strong>Endereço:</strong> ${student.address}</div>
+            <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+              <strong>Endereço:</strong> ${student.address}
+            </div>
             <div><strong>Ponto de Coleta:</strong> ${student.pickupPoint}</div>
             ${schools.find(school => school.id === student.schoolId) ? `<div><strong>Escola:</strong> ${schools.find(school => school.id === student.schoolId)?.name}</div>` : ''}
             <div><strong>Responsável:</strong> ${student.guardianPhone}</div>
@@ -833,8 +845,14 @@ function GuardianMapboxMap({
         <div style="padding: 10px;">
           <div style="font-weight: 600; font-size: 16px; margin-bottom: 8px; color: #059669;">🏫 ${school.name}</div>
           <div style="font-size: 12px; color: #374151;">
-            <div style="margin-bottom: 4px;"><strong>📍 Endereço:</strong></div>
-            <div style="margin-bottom: 8px; padding: 4px; background: #f3f4f6; border-radius: 4px;">${school.address}</div>
+            <div style="margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+              <strong>Endereço:</strong>
+            </div>
+            <div style="margin-bottom: 8px; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; margin-left: 18px;">${school.address}</div>
             <div style="display: flex; align-items: center; gap: 6px;">
               <span style="background: #10b981; color: white; padding: 2px 6px; border-radius: 12px; font-size: 10px; font-weight: 600;">
                 👨‍🎓 ${studentsInSchool} ${studentsInSchool === 1 ? 'Aluno' : 'Alunos'}
