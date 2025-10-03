@@ -2,44 +2,50 @@
 import { School } from '@/types/driver';
 
 // Dados fornecidos pelo usuário
+// Importante: não definir latitude/longitude fixas aqui.
+// Deixe o fluxo de geocodificação (useMapboxMap -> useGeocoding -> realtimeDataService)
 const newSchoolsData: School[] = [
   {
     id: '1757514957931',
     name: 'CRECHE',
-    address: 'Av. Expedicionário José Barca, 182 - Fazenda Rodeio, Mogi das Cruzes - SP, 08775-600',
-    latitude: -9.588903,
-    longitude: -51.619789
+    address: 'Av. Expedicionário José Barca, 182 - Fazenda Rodeio, Mogi das cruzes - SP, 08775-600'
+  },
+  // Adicionar também a escola com o ID referenciado pelos estudantes nos logs
+  {
+    id: '1759492459747',
+    name: 'CRECHE',
+    address: 'Av. Expedicionário José Barca, 182 - Fazenda Rodeio, Mogi das cruzes - SP, 08775-600'
   }
 ];
 
 export const updateSchoolsData = (): void => {
   try {
-    console.log('🏫 Atualizando dados das escolas no localStorage...');
+    console.log(' Atualizando dados das escolas no localStorage...');
     
-    // Verificar dados existentes
-    const existingSchools = localStorage.getItem('schools');
-    if (existingSchools) {
-      console.log('📋 Dados existentes encontrados:', JSON.parse(existingSchools));
-    } else {
-      console.log('📋 Nenhum dado existente encontrado');
-    }
+    // Carregar escolas existentes (se houver)
+    const existingSchoolsRaw = localStorage.getItem('schools');
+    const existingSchools: School[] = existingSchoolsRaw ? JSON.parse(existingSchoolsRaw) : [];
+    console.log(' Dados existentes carregados:', existingSchools.length);
     
-    // Salvar novos dados
-    localStorage.setItem('schools', JSON.stringify(newSchoolsData));
+    // Criar mapa por id para mesclar sem duplicar
+    const byId = new Map<string, School>();
+    existingSchools.forEach(s => byId.set(s.id, s));
+    newSchoolsData.forEach(s => byId.set(s.id, { ...byId.get(s.id), ...s }));
     
-    console.log('✅ Dados das escolas atualizados com sucesso!');
-    console.log('📍 Novos dados salvos:', newSchoolsData);
+    const merged = Array.from(byId.values());
     
-    // Verificar se os dados foram salvos corretamente
+    // Salvar mesclado
+    localStorage.setItem('schools', JSON.stringify(merged));
+    console.log(' Dados das escolas mesclados e salvos:', merged);
+    
+    // Verificação
     const savedData = localStorage.getItem('schools');
     if (savedData) {
       const parsedData = JSON.parse(savedData);
-      console.log('🔍 Verificação - Dados salvos:', parsedData);
-      
-      // Validar estrutura dos dados
+      console.log(' Verificação - Dados salvos:', parsedData);
       if (Array.isArray(parsedData) && parsedData.length > 0) {
         const school = parsedData[0];
-        console.log('✅ Validação bem-sucedida:');
+        console.log(' Validação bem-sucedida (primeira escola):');
         console.log(`   - ID: ${school.id}`);
         console.log(`   - Nome: ${school.name}`);
         console.log(`   - Endereço: ${school.address}`);
@@ -48,13 +54,13 @@ export const updateSchoolsData = (): void => {
       }
     }
     
-    // Disparar evento personalizado para notificar componentes sobre a atualização
+    // Notificar componentes sobre a atualização
     window.dispatchEvent(new CustomEvent('schoolsDataUpdated', { 
-      detail: { schools: newSchoolsData } 
+      detail: { schools: merged } 
     }));
     
   } catch (error) {
-    console.error('❌ Erro ao atualizar dados das escolas:', error);
+    console.error(' Erro ao atualizar dados das escolas:', error);
     throw error;
   }
 };

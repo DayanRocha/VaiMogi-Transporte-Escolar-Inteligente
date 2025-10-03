@@ -32,7 +32,18 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
   const handleSave = () => {
     console.log('🔄 Salvando dados da van:', formData);
     
+    // Validar dados antes de salvar
+    if (!formData.model || !formData.plate) {
+      alert("⚠️ Por favor, preencha pelo menos o modelo e a placa da van!");
+      return;
+    }
+    
     try {
+      // Verificar se localStorage está disponível (pode não estar no celular em modo privado)
+      if (typeof localStorage === 'undefined') {
+        throw new Error('localStorage não disponível');
+      }
+      
       onUpdate(formData);
       setIsDataSaved(true);
       setIsEditingEnabled(false);
@@ -41,11 +52,15 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
       setShowSuccessMessage(true);
       
       // Toast
-      toast({
-        title: "✅ Sucesso!",
-        description: "Dados da van salvos com sucesso!",
-        duration: 3000,
-      });
+      try {
+        toast({
+          title: "✅ Sucesso!",
+          description: "Dados da van salvos com sucesso!",
+          duration: 3000,
+        });
+      } catch (toastError) {
+        console.warn('Toast não disponível:', toastError);
+      }
       
       // Alert como fallback
       alert("✅ Dados da van salvos com sucesso!");
@@ -58,7 +73,7 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
       console.log('✅ Todas as notificações enviadas');
     } catch (error) {
       console.error('❌ Erro ao salvar:', error);
-      alert("❌ Erro ao salvar os dados da van!");
+      alert(`❌ Erro ao salvar os dados da van: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   };
 
@@ -89,7 +104,7 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
       };
       reader.readAsDataURL(file);
     } else {
-      alert('Por favor, selecione apenas arquivos JPG ou PDF para o documento de permissão.');
+      alert('⚠️ Por favor, selecione apenas arquivos JPG ou PDF para a CNH.');
     }
   };
 
@@ -157,56 +172,60 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
 
         <div className="space-y-4">
           <div>
-            <Label htmlFor="model">Modelo</Label>
+            <Label htmlFor="model">Modelo da Van</Label>
             <Input
               id="model"
               value={formData.model || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, model: e.target.value }))}
-              placeholder="Ex: Sprinter 415"
+              placeholder="Ex: Sprinter 415, Ducato, Master"
               disabled={!isEditingEnabled}
               className={!isEditingEnabled ? "bg-gray-100" : ""}
             />
           </div>
 
           <div>
-            <Label htmlFor="plate">Placa</Label>
+            <Label htmlFor="plate">Placa do Veículo</Label>
             <Input
               id="plate"
               value={formData.plate || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, plate: e.target.value }))}
-              placeholder="Ex: ABC-1234"
+              onChange={(e) => setFormData(prev => ({ ...prev, plate: e.target.value.toUpperCase() }))}
+              placeholder="Ex: ABC-1234 ou ABC1D23"
               disabled={!isEditingEnabled}
               className={!isEditingEnabled ? "bg-gray-100" : ""}
+              maxLength={8}
             />
           </div>
 
           <div>
-            <Label htmlFor="capacity">Capacidade</Label>
+            <Label htmlFor="capacity">Capacidade de Passageiros</Label>
             <Input
               id="capacity"
               type="number"
               value={formData.capacity || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, capacity: parseInt(e.target.value) || 0 }))}
-              placeholder="Ex: 20"
+              placeholder="Ex: 15, 20, 25"
               disabled={!isEditingEnabled}
               className={!isEditingEnabled ? "bg-gray-100" : ""}
+              min="1"
+              max="50"
             />
           </div>
 
           <div>
-            <Label htmlFor="observations">Observações</Label>
+            <Label htmlFor="observations">Observações Adicionais</Label>
             <Input
               id="observations"
               value={formData.observations || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, observations: e.target.value }))}
-              placeholder="Observações adicionais"
+              placeholder="Ex: Ar condicionado, Wi-Fi, etc."
               disabled={!isEditingEnabled}
               className={!isEditingEnabled ? "bg-gray-100" : ""}
             />
           </div>
 
           <div>
-            <Label className="text-gray-700 font-medium">Documento de Permissão para Dirigir</Label>
+            <Label className="text-gray-700 font-medium">CNH - Carteira Nacional de Habilitação</Label>
+            <p className="text-xs text-gray-500 mt-1 mb-2">Envie uma foto ou PDF da sua CNH</p>
             <div className="mt-3 relative">
               <div className="w-full h-32 bg-white rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
                 {formData.drivingPermitDocument ? (
@@ -215,21 +234,21 @@ export const VanRegistration = ({ van, onUpdate, onBack, onLogout }: VanRegistra
                       <svg className="w-12 h-12 mb-2" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
                       </svg>
-                      <p className="text-sm font-medium">PDF Carregado</p>
-                      <p className="text-xs">Documento de permissão</p>
+                      <p className="text-sm font-medium">PDF da CNH Carregado</p>
+                      <p className="text-xs">Documento anexado</p>
                     </div>
                   ) : (
                     <img
                       src={formData.drivingPermitDocument}
-                      alt="Documento de permissão"
+                      alt="CNH - Carteira Nacional de Habilitação"
                       className="w-full h-full object-cover"
                     />
                   )
                 ) : (
                   <div className="text-center text-gray-500">
                     <Camera className="w-6 h-6 mx-auto mb-2" />
-                    <p className="text-sm">Adicionar documento JPG ou PDF</p>
-                     <p className="text-xs text-gray-400">Comprovante de permissão</p>
+                    <p className="text-sm">Adicionar foto da CNH</p>
+                     <p className="text-xs text-gray-400">Formatos: JPG ou PDF</p>
                   </div>
                 )}
               </div>

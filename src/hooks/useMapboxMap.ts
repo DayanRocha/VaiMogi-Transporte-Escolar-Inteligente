@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Student, School } from '@/types/driver';
 import { useGeocoding } from '@/hooks/useGeocoding';
 
@@ -23,7 +23,7 @@ interface UseMapboxMapProps {
 }
 
 export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMapProps) => {
-  console.log('🗺️ useMapboxMap: Recebendo dados:', {
+  console.log('🗺️ useMapboxMap: Recebendo dados:', {
     students: students.length,
     schools: schools.length,
     driverLocation: !!driverLocation
@@ -36,7 +36,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
   const [geocodedStudents, setGeocodedStudents] = useState<Student[]>(students);
   const [geocodedSchools, setGeocodedSchools] = useState<School[]>(schools);
   
-  // Cache de endereços já geocodificados (baseado no endereço, não em lat/lng)
+  // Cache de endereços já¡ geocodificados (baseado no endereço, não em lat/lng)
   const geocodedAddressCache = useMemo(() => new Map<string, { lat: number; lng: number }>(), []);
 
   // Hook de geocodificação
@@ -49,13 +49,13 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
       const updatedStudents = await Promise.all(
         students.map(async (student) => {
           if (!student.address || student.address.trim().length === 0) {
-            console.warn('⚠️ Estudante sem endereço:', student.name);
+            console.warn('âš ï¸ Estudante sem endereço:', student.name);
             return student;
           }
 
           const addressKey = student.address.trim().toLowerCase();
           
-          // Verificar se já temos coordenadas válidas para este endereço específico
+          // Verificar se já¡ temos coordenadas vÃ¡lidas para este endereço especÃ­fico
           const hasValidCoordsForAddress = student.latitude && student.longitude &&
             typeof student.latitude === 'number' &&
             typeof student.longitude === 'number' &&
@@ -65,7 +65,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
             student.longitude >= -54 && student.longitude <= -44;
 
           if (hasValidCoordsForAddress) {
-            console.log('✅ Estudante já tem coordenadas válidas para o endereço:', student.name, { lat: student.latitude, lng: student.longitude });
+            console.log('… Estudante já¡ tem coordenadas vÃ¡lidas para o endereço:', student.name, { lat: student.latitude, lng: student.longitude });
             // Adicionar ao cache
             geocodedAddressCache.set(addressKey, { lat: student.latitude, lng: student.longitude });
             return student;
@@ -74,7 +74,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
           // Verificar cache de endereços
           const cachedCoords = geocodedAddressCache.get(addressKey);
           if (cachedCoords) {
-            console.log('✅ Usando coordenadas do cache para estudante:', student.name);
+            console.log('… Usando coordenadas do cache para estudante:', student.name);
             hasChanges = true;
             return {
               ...student,
@@ -84,7 +84,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
           }
 
           // Geocodificar o endereço
-          console.log('🔍 Geocodificando endereço do estudante:', student.name, student.address);
+          console.log('ðŸ” Geocodificando endereço do estudante:', student.name, student.address);
           
           const coordinates = await geocodeStudentAddress(student.id, student.address);
           if (coordinates) {
@@ -93,7 +93,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
             
             // Validar coordenadas obtidas (região mais ampla para SP)
             if (lat >= -25 && lat <= -20 && lng >= -54 && lng <= -44) {
-              console.log('✅ Coordenadas VÁLIDAS obtidas para estudante:', student.name, { lat, lng, endereço: student.address });
+              console.log('… Coordenadas VÃLIDAS obtidas para estudante:', student.name, { lat, lng, endereço: student.address });
               
               // Adicionar ao cache
               geocodedAddressCache.set(addressKey, { lat, lng });
@@ -105,11 +105,11 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
                 longitude: lng
               };
             } else {
-              console.error('❌ Coordenadas INVÁLIDAS obtidas (fora da região SP):', student.name, { lat, lng, endereço: student.address });
-              console.error('💡 Verifique se o endereço está correto:', student.address);
+              console.error('âŒ Coordenadas INVÃLIDAS obtidas (fora da região SP):', student.name, { lat, lng, endereço: student.address });
+              console.error('ðŸ’¡ Verifique se o endereço estÃ¡ correto:', student.address);
             }
           } else {
-            console.warn('⚠️ Não foi possível geocodificar estudante:', student.name, student.address);
+            console.warn('âš ï¸ não foi possÃ­vel geocodificar estudante:', student.name, student.address);
           }
 
           return student;
@@ -122,9 +122,9 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
       if (hasChanges) {
         try {
           localStorage.setItem('students', JSON.stringify(updatedStudents));
-          console.log('💾 Coordenadas dos estudantes salvas no localStorage');
+          console.log('ðŸ’¾ Coordenadas dos estudantes salvas no localStorage');
         } catch (error) {
-          console.error('❌ Erro ao salvar coordenadas dos estudantes:', error);
+          console.error('âŒ Erro ao salvar coordenadas dos estudantes:', error);
         }
       }
     };
@@ -139,23 +139,23 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
       const updatedSchools = await Promise.all(
         schools.map(async (school) => {
           if (!school.address || school.address.trim().length === 0) {
-            console.warn('⚠️ Escola sem endereço:', school.name);
+            console.warn('âš ï¸ Escola sem endereço:', school.name);
             return school;
           }
 
           const addressKey = school.address.trim().toLowerCase();
           
-          // Verificar se já temos coordenadas válidas para este endereço específico
+          // Verificar se já¡ temos coordenadas vÃ¡lidas para este endereço especÃ­fico
           const hasValidCoordsForAddress = school.latitude && school.longitude &&
             typeof school.latitude === 'number' &&
             typeof school.longitude === 'number' &&
             !isNaN(school.latitude) && 
             !isNaN(school.longitude) &&
             school.latitude >= -25 && school.latitude <= -20 &&
-            school.longitude >= -50 && school.longitude <= -44;
+            school.longitude >= -54 && school.longitude <= -44;
 
           if (hasValidCoordsForAddress) {
-            console.log('✅ Escola já tem coordenadas válidas para o endereço:', school.name, { lat: school.latitude, lng: school.longitude });
+            console.log('… Escola já¡ tem coordenadas vÃ¡lidas para o endereço:', school.name, { lat: school.latitude, lng: school.longitude });
             // Adicionar ao cache
             geocodedAddressCache.set(addressKey, { lat: school.latitude, lng: school.longitude });
             return school;
@@ -164,7 +164,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
           // Verificar cache de endereços
           const cachedCoords = geocodedAddressCache.get(addressKey);
           if (cachedCoords) {
-            console.log('✅ Usando coordenadas do cache para escola:', school.name);
+            console.log('… Usando coordenadas do cache para escola:', school.name);
             hasChanges = true;
             return {
               ...school,
@@ -174,7 +174,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
           }
 
           // Geocodificar o endereço
-          console.log('🔍 Geocodificando endereço da escola:', school.name, school.address);
+          console.log('ðŸ” Geocodificando endereço da escola:', school.name, school.address);
           
           const coordinates = await geocodeSchoolAddress(school.id, school.address);
           if (coordinates) {
@@ -182,8 +182,8 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
             const lng = coordinates[0];
             
             // Validar coordenadas obtidas
-            if (lat >= -25 && lat <= -20 && lng >= -50 && lng <= -44) {
-              console.log('✅ Coordenadas VÁLIDAS obtidas para escola:', school.name, { lat, lng, endereço: school.address });
+            if (lat >= -25 && lat <= -20 && lng >= -54 && lng <= -44) {
+              console.log('… Coordenadas VÃLIDAS obtidas para escola:', school.name, { lat, lng, endereço: school.address });
               
               // Adicionar ao cache
               geocodedAddressCache.set(addressKey, { lat, lng });
@@ -195,11 +195,11 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
                 longitude: lng
               };
             } else {
-              console.error('❌ Coordenadas INVÁLIDAS obtidas (fora da região SP):', school.name, { lat, lng, endereço: school.address });
-              console.error('💡 Verifique se o endereço está correto:', school.address);
+              console.error('âŒ Coordenadas INVÃLIDAS obtidas (fora da região SP):', school.name, { lat, lng, endereço: school.address });
+              console.error('ðŸ’¡ Verifique se o endereço estÃ¡ correto:', school.address);
             }
           } else {
-            console.warn('⚠️ Não foi possível geocodificar escola:', school.name, school.address);
+            console.warn('âš ï¸ não foi possÃ­vel geocodificar escola:', school.name, school.address);
           }
 
           return school;
@@ -212,9 +212,9 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
       if (hasChanges) {
         try {
           localStorage.setItem('schools', JSON.stringify(updatedSchools));
-          console.log('💾 Coordenadas das escolas salvas no localStorage');
+          console.log('ðŸ’¾ Coordenadas das escolas salvas no localStorage');
         } catch (error) {
-          console.error('❌ Erro ao salvar coordenadas das escolas:', error);
+          console.error('âŒ Erro ao salvar coordenadas das escolas:', error);
         }
       }
     };
@@ -222,7 +222,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
     geocodeSchools();
   }, [schools, geocodeSchoolAddress, geocodedAddressCache]);
 
-  // Filtrar estudantes e escolas com coordenadas válidas (usando dados geocodificados)
+  // Filtrar estudantes e escolas com coordenadas vÃ¡lidas (usando dados geocodificados)
   const studentsWithCoords = useMemo(() => (
     geocodedStudents?.filter(student => 
       student.latitude && 
@@ -251,7 +251,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
       school.longitude !== 0 &&
       // Validar região (São Paulo e arredores)
       school.latitude >= -25 && school.latitude <= -20 &&
-      school.longitude >= -50 && school.longitude <= -44
+      school.longitude >= -54 && school.longitude <= -44
     ) || []
   ), [geocodedSchools]);
 
@@ -286,7 +286,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
       }
     }
 
-    // Aplicar somente se houver alteração real para evitar loops de atualização
+    // Aplicar somente se houver alteração real para evitar loops de atualizaÃ§Ã£o
     if (nextCenter) {
       const centerChanged = (mapCenter[0] !== nextCenter[0]) || (mapCenter[1] !== nextCenter[1]);
       const zoomChanged = (nextZoom !== null) && (mapZoom !== nextZoom);
@@ -364,7 +364,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
     }
     
     if (allPoints.length === 1) {
-      // Se há apenas um ponto, retornar bounds com padding
+      // Se hÃ¡ apenas um ponto, retornar bounds com padding
       const [lng, lat] = allPoints[0];
       const padding = 0.01; // ~1km de padding
       return [
@@ -400,7 +400,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
         minute: '2-digit'
       });
     } catch (error) {
-      return 'Horário inválido';
+      return 'HorÃ¡rio invÃ¡lido';
     }
   }, []);
 
@@ -414,7 +414,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
       Math.sin(dLng/2) * Math.sin(dLng/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c; // Distância em km
+    return R * c; // distância em km
   }, []);
 
   // Função para converter coordenadas para formato GeoJSON

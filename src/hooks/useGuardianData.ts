@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Driver, Van, Student, Trip, Guardian } from '@/types/driver';
+import { Driver, Van, Student, Trip, TripStudent, Guardian } from '@/types/driver';
 import { notificationService } from '@/services/notificationService';
 import { realTimeNotificationService } from '@/services/realTimeNotificationService';
 import { audioService, NotificationSoundType } from '@/services/audioService';
@@ -18,10 +18,111 @@ export interface GuardianNotification {
   };
 }
 
-// Função para carregar dados do responsável logado
+// Função para carregar dados do responsável logado (com suporte a múltiplas abas via query param)
+// Regras:
+// - Prioriza o código único do responsável na URL (?code=...)
+// - Se não houver código, aceita ?guardianId=...
+// - Fallback para 'guardianData' em localStorage (modo legado)
 const getLoggedGuardian = (): Guardian | null => {
+  // 1) Tentar obter o código único pela URL (?code=...)
+  try {
+    const search = new URLSearchParams(window.location.search);
+    const urlGuardianCode = search.get('code');
+    if (urlGuardianCode) {
+      // Procurar responsável na lista persistida usando o código único
+      const savedGuardians = localStorage.getItem('guardians');
+      if (savedGuardians) {
+        try {
+          const guardians = JSON.parse(savedGuardians) as Guardian[];
+          const foundByCode = guardians.find(g => (g.uniqueCode || '').toString() === urlGuardianCode);
+          if (foundByCode) {
+            console.log('👤 Guardian carregado via URL (code):', foundByCode);
+            const guardianResolved: Guardian = {
+              id: foundByCode.id,
+              name: foundByCode.name || 'Responsável',
+              email: foundByCode.email || '',
+              phone: foundByCode.phone || '',
+              uniqueCode: foundByCode.uniqueCode || urlGuardianCode,
+              codeGeneratedAt: foundByCode.codeGeneratedAt,
+              isActive: foundByCode.isActive ?? true
+            };
+            // Isolar por aba
+            sessionStorage.setItem('currentGuardianKey', `code:${guardianResolved.uniqueCode}`);
+            sessionStorage.setItem('currentGuardianId', guardianResolved.id);
+            // Evitar conflito com legado quando usar ?code=
+            try { localStorage.removeItem('guardianData'); } catch {}
+            return guardianResolved;
+          }
+        } catch (e) {
+          console.warn('⚠️ Lista de responsáveis inválida no localStorage:', e);
+        }
+      }
+      // Se não encontrou na lista, criar objeto mínimo a partir do código
+      console.log('👤 Guardian mínimo criado via URL (code):', urlGuardianCode);
+      const guardianResolved: Guardian = {
+        id: `guardian-${urlGuardianCode}`,
+        name: `Responsável ${urlGuardianCode}`,
+        email: '',
+        phone: '',
+        uniqueCode: urlGuardianCode,
+        codeGeneratedAt: undefined,
+        isActive: true
+      } as Guardian;
+      sessionStorage.setItem('currentGuardianKey', `code:${guardianResolved.uniqueCode}`);
+      sessionStorage.setItem('currentGuardianId', guardianResolved.id);
+      try { localStorage.removeItem('guardianData'); } catch {}
+      return guardianResolved;
+    }
+
+    // 2) Alternativamente, suportar ?guardianId=... (modo anterior)
+    const urlGuardianId = search.get('guardianId');
+    if (urlGuardianId) {
+      // Tentar encontrar esse responsável em uma lista persistida (se existir)
+      const savedGuardians = localStorage.getItem('guardians');
+      if (savedGuardians) {
+        try {
+          const guardians = JSON.parse(savedGuardians) as Guardian[];
+          const found = guardians.find(g => g.id === urlGuardianId);
+          if (found) {
+            console.log('👤 Guardian carregado via URL (lista):', found);
+            const guardianResolved: Guardian = {
+              id: found.id,
+              name: found.name || 'Responsável',
+              email: found.email || '',
+              phone: found.phone || '',
+              uniqueCode: found.uniqueCode || '',
+              codeGeneratedAt: found.codeGeneratedAt,
+              isActive: found.isActive ?? true
+            };
+            sessionStorage.setItem('currentGuardianKey', `id:${guardianResolved.id}`);
+            sessionStorage.setItem('currentGuardianId', guardianResolved.id);
+            return guardianResolved;
+          }
+        } catch (e) {
+          console.warn('⚠️ Lista de responsáveis inválida no localStorage:', e);
+        }
+      }
+      // Se não há lista, construir um responsável mínimo a partir do ID da URL
+      console.log('👤 Guardian mínimo criado via URL:', urlGuardianId);
+      const guardianResolved: Guardian = {
+        id: urlGuardianId,
+        name: `Responsável ${urlGuardianId}`,
+        email: '',
+        phone: '',
+        uniqueCode: '',
+        codeGeneratedAt: undefined,
+        isActive: true
+      } as Guardian;
+      sessionStorage.setItem('currentGuardianKey', `id:${guardianResolved.id}`);
+      sessionStorage.setItem('currentGuardianId', guardianResolved.id);
+      return guardianResolved;
+    }
+  } catch (e) {
+    console.warn('⚠️ Não foi possível ler guardianId da URL:', e);
+  }
+
+  // 2) Fallback: usar 'guardianData' único salvo (comportamento atual)
   const savedGuardianData = localStorage.getItem('guardianData');
-  
   if (savedGuardianData) {
     try {
       const guardianData = JSON.parse(savedGuardianData);
@@ -33,7 +134,7 @@ const getLoggedGuardian = (): Guardian | null => {
         uniqueCode: guardianData.code || '',
         codeGeneratedAt: guardianData.codeGeneratedAt,
         isActive: true
-      };
+      } as Guardian;
     } catch (error) {
       console.error('Erro ao carregar dados do responsável:', error);
     }
@@ -219,7 +320,7 @@ const getVanData = (driverId: string): Van | null => {
   return null;
 };
 
-// Função para buscar filhos do responsável logado
+// Função para buscar filhos do responsável logado (usa apenas o ID do responsável)
 const getGuardianChildren = (guardianId: string): Student[] => {
   const savedStudents = localStorage.getItem('students');
   
@@ -236,27 +337,33 @@ const getGuardianChildren = (guardianId: string): Student[] => {
   return [];
 };
 
-// Função para buscar escolas do localStorage
-const getSchools = () => {
-  const savedSchools = localStorage.getItem('schools');
-  
-  console.log('🏫 Buscando escolas no localStorage...');
-  
-  if (savedSchools) {
-    try {
-      const schools = JSON.parse(savedSchools);
-      console.log('🏫 Escolas encontradas:', schools.length);
-      console.log('🏫 Dados das escolas:', schools);
-      return schools;
-    } catch (error) {
-      console.error('❌ Erro ao carregar escolas:', error);
-    }
-  } else {
-    console.log('❌ Nenhuma escola encontrada no localStorage');
+// Função para buscar escolas do localStorage e filtrar logicamente pelos filhos do responsável
+const getSchools = (guardianId: string, guardianStudents: Student[]) => {
+  console.log('🏫 Buscando escolas relacionadas ao responsável:', guardianId);
+  const savedSchoolsRaw = localStorage.getItem('schools');
+  const savedSchools = savedSchoolsRaw ? JSON.parse(savedSchoolsRaw) : [];
+  console.log('🏫 Escolas disponíveis no storage:', savedSchools.length);
+
+  // Conjunto de schoolIds dos filhos do responsável
+  const guardianSchoolIds = new Set(guardianStudents.map(s => s.schoolId).filter(Boolean));
+  console.log('🏫 schoolIds dos filhos:', Array.from(guardianSchoolIds));
+
+  if (savedSchools.length === 0) {
+    console.log('❌ Nenhuma escola no storage. Verifique se o motorista já cadastrou as escolas.');
+    return [];
   }
-  
-  console.log('❌ Nenhuma escola encontrada, retornando array vazio');
-  return [];
+
+  // Filtrar escolas por schoolIds dos filhos
+  const filtered = savedSchools.filter((s: any) => guardianSchoolIds.has(s.id));
+  console.log('🏫 Escolas filtradas para o responsável:', filtered.map((s: any) => ({ id: s.id, name: s.name })));
+
+  // Diagnóstico: IDs sem correspondência
+  const missing = Array.from(guardianSchoolIds).filter(id => !filtered.some((s: any) => s.id === id));
+  if (missing.length > 0) {
+    console.warn('⚠️ schoolIds de estudantes sem correspondência em schools:', missing);
+  }
+
+  return filtered;
 };
 
 export const useGuardianData = () => {
@@ -297,22 +404,26 @@ export const useGuardianData = () => {
   });
   
   const [students, setStudents] = useState<Student[]>(() => getGuardianChildren(guardian.id));
-  const [schools, setSchools] = useState(() => getSchools());
+  const [schools, setSchools] = useState(() => getSchools(guardian.id, getGuardianChildren(guardian.id)));
   const [activeTrip, setActiveTrip] = useState<Trip | null>(() => {
     // Verificar se há uma rota ativa no routeTrackingService
     const activeRoute = routeTrackingService.getActiveRoute();
     if (activeRoute) {
-      // Converter ActiveRoute para Trip
+      // Converter ActiveRoute para Trip (conforme tipos/driver.ts)
+      const tripStudents = (activeRoute.studentPickups || []).map((p: any) => ({
+        studentId: p.studentId,
+        direction: activeRoute.direction,
+        status: p.status === 'picked_up' ? 'embarked' : (p.status === 'dropped_off' ? 'disembarked' : 'waiting')
+      }));
+
+      const dateISO = new Date(activeRoute.startTime).toISOString();
       return {
         id: activeRoute.id,
-        driverId: activeRoute.driverId,
-        direction: activeRoute.direction,
-        startTime: activeRoute.startTime,
-        endTime: activeRoute.endTime,
-        isActive: activeRoute.isActive,
-        currentLocation: activeRoute.currentLocation,
-        studentPickups: activeRoute.studentPickups
-      };
+        routeId: activeRoute.id,
+        date: dateISO,
+        status: activeRoute.isActive ? 'in_progress' : 'planned',
+        students: tripStudents
+      } as Trip;
     }
     return null;
   });
@@ -336,16 +447,24 @@ export const useGuardianData = () => {
       console.log('Debug: Rota ativa detectada no guardian hook:', activeRoute ? 'SIM' : 'NÃO');
       if (activeRoute) {
         console.log('Debug: Route details in guardian:', { isActive: activeRoute.isActive, driverName: activeRoute.driverName });
-        // Converter ActiveRoute para Trip e atualizar estado
+        // Converter ActiveRoute para Trip (conforme types/driver.ts) e atualizar estado
+        const tripStudents: TripStudent[] = (activeRoute.studentPickups || []).map((p: any) => {
+          const status: TripStudent['status'] =
+            p.status === 'picked_up' ? 'embarked'
+            : p.status === 'dropped_off' ? 'disembarked'
+            : 'waiting';
+          return {
+            studentId: p.studentId,
+            direction: activeRoute.direction,
+            status
+          };
+        });
         const tripData: Trip = {
           id: activeRoute.id,
-          driverId: activeRoute.driverId,
-          direction: activeRoute.direction,
-          startTime: activeRoute.startTime,
-          endTime: activeRoute.endTime,
-          isActive: activeRoute.isActive,
-          currentLocation: activeRoute.currentLocation,
-          studentPickups: activeRoute.studentPickups
+          routeId: activeRoute.id,
+          date: new Date(activeRoute.startTime).toISOString(),
+          status: activeRoute.isActive ? 'in_progress' : (activeRoute.endTime ? 'completed' : 'planned'),
+          students: tripStudents
         };
         setActiveTrip(tripData);
       } else {
@@ -353,7 +472,7 @@ export const useGuardianData = () => {
       }
       const newVan = newDriver ? getVanData(newDriver.id) : null;
       const newStudents = getGuardianChildren(guardian.id);
-      const newSchools = getSchools();
+      const newSchools = getSchools(guardian.id, newStudents);
       
       setDriver(newDriver);
       setVan(newVan);
@@ -384,15 +503,18 @@ export const useGuardianData = () => {
     const handleRouteChange = (activeRoute: any) => {
       console.log('🔄 Mudança na rota detectada no guardian hook:', activeRoute ? 'ATIVA' : 'INATIVA');
       if (activeRoute) {
+        const tripStudents = (activeRoute.studentPickups || []).map((p: any) => ({
+          studentId: p.studentId,
+          direction: activeRoute.direction,
+          status: p.status === 'picked_up' ? 'embarked' : (p.status === 'dropped_off' ? 'disembarked' : 'waiting')
+        }));
+        const dateISO = new Date(activeRoute.startTime).toISOString();
         const tripData: Trip = {
           id: activeRoute.id,
-          driverId: activeRoute.driverId,
-          direction: activeRoute.direction,
-          startTime: activeRoute.startTime,
-          endTime: activeRoute.endTime,
-          isActive: activeRoute.isActive,
-          currentLocation: activeRoute.currentLocation,
-          studentPickups: activeRoute.studentPickups
+          routeId: activeRoute.id,
+          date: dateISO,
+          status: activeRoute.isActive ? 'in_progress' : 'planned',
+          students: tripStudents
         };
         setActiveTrip(tripData);
         console.log('✅ ActiveTrip atualizado no guardian hook:', tripData.id);

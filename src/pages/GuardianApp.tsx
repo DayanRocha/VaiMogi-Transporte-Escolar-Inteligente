@@ -14,7 +14,6 @@ import { useRealTimeNotifications } from '@/hooks/useRealTimeNotifications';
 import { useRouteTracking } from '@/hooks/useRouteTracking';
 import { audioService } from '@/services/audioService';
 import { initNotificationCleanup } from '@/utils/notificationCleanup';
-import { updateSchoolsData } from '@/utils/updateSchoolsData';
 import '@/utils/clearGeocodingCache'; // Importar para expor funções globalmente
 
 export const GuardianApp = () => {
@@ -133,15 +132,7 @@ export const GuardianApp = () => {
     }
   }, [guardian.id]);
 
-  // Atualizar dados das escolas quando o componente for carregado
-  useEffect(() => {
-    try {
-      updateSchoolsData();
-      console.log('🏫 Dados das escolas atualizados no GuardianApp');
-    } catch (error) {
-      console.error('❌ Erro ao atualizar dados das escolas:', error);
-    }
-  }, []);
+  // Removido: não sobrescrever dados das escolas cadastrados pelo motorista
 
   // Inicializar serviço de áudio e limpeza de notificações
   useEffect(() => {
@@ -215,6 +206,27 @@ export const GuardianApp = () => {
     console.log(`👋 Boas-vindas mostradas para ${guardian.name}`);
   };
 
+  // DEBUG: verificar escolas relacionadas ao responsável atual
+  useEffect(() => {
+    try {
+      const allStudents = JSON.parse(localStorage.getItem('students') || '[]');
+      const allSchools = JSON.parse(localStorage.getItem('schools') || '[]');
+      const myStudents = (Array.isArray(allStudents) ? allStudents : []).filter((s: any) => s.guardianId === guardian.id);
+      const guardianSchoolIds = [...new Set(myStudents.map((s: any) => s.schoolId))];
+      const present = (Array.isArray(allSchools) ? allSchools : []).filter((s: any) => guardianSchoolIds.includes(s.id));
+      const missing = guardianSchoolIds.filter((id: string) => !present.some((s: any) => s.id === id));
+      console.log('🔎 DEBUG Escolas por responsável:', {
+        guardianId: guardian.id,
+        studentsOfGuardian: myStudents.map((s: any) => ({ id: s.id, name: s.name, schoolId: s.schoolId })),
+        guardianSchoolIds,
+        presentSchools: present.map((s: any) => ({ id: s.id, name: s.name })),
+        missingSchoolIds: missing
+      });
+    } catch (e) {
+      console.warn('⚠️ DEBUG Escolas por responsável: erro ao ler localStorage', e);
+    }
+  }, [guardian.id]);
+
   return (
     <>
       <SEOHead
@@ -236,18 +248,27 @@ export const GuardianApp = () => {
       />
 
       {/* Main Map View */}
-      <div className="h-[calc(100vh-64px)] relative z-0">
-        <ErrorBoundary>
-          <GuardianMapboxMap
-            driverLocation={mappedDriverLocation}
-            activeRoute={mappedActiveRoute}
-            students={students}
-            schools={schools}
-            mapQuality={mapQuality}
-            onMapQualityChange={setMapQuality}
-          />
-        </ErrorBoundary>
-      </div>
+      {hasActiveRoute ? (
+        <div className="h-[calc(100vh-64px)] relative z-0">
+          <ErrorBoundary>
+            <GuardianMapboxMap
+              driverLocation={mappedDriverLocation}
+              activeRoute={mappedActiveRoute}
+              students={students}
+              schools={schools}
+              mapQuality={mapQuality}
+              onMapQualityChange={setMapQuality}
+            />
+          </ErrorBoundary>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center h-[calc(100vh-64px)] bg-gray-100">
+          <div className="text-center p-4">
+            <h2 className="text-2xl font-bold text-gray-700 mb-2">Nenhuma rota ativa no momento</h2>
+            <p className="text-gray-500">O mapa será exibido aqui quando o motorista iniciar uma viagem.</p>
+          </div>
+        </div>
+      )}
 
       {/* Guardian Menu Modal */}
       <GuardianMenuModal

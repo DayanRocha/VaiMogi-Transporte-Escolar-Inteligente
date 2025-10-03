@@ -22,7 +22,18 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
   const handleSave = () => {
     console.log('🔄 Salvando dados do motorista:', formData);
     
+    // Validar dados antes de salvar
+    if (!formData.name || !formData.phone) {
+      alert("⚠️ Por favor, preencha pelo menos o nome e telefone!");
+      return;
+    }
+    
     try {
+      // Verificar se localStorage está disponível (pode não estar no celular em modo privado)
+      if (typeof localStorage === 'undefined') {
+        throw new Error('localStorage não disponível');
+      }
+      
       onUpdate(formData);
       setIsEditing(false);
       
@@ -30,11 +41,15 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
       setShowSuccessMessage(true);
       
       // Toast
-      toast({
-        title: "✅ Sucesso!",
-        description: "Perfil do motorista salvo com sucesso!",
-        duration: 3000,
-      });
+      try {
+        toast({
+          title: "✅ Sucesso!",
+          description: "Perfil do motorista salvo com sucesso!",
+          duration: 3000,
+        });
+      } catch (toastError) {
+        console.warn('Toast não disponível:', toastError);
+      }
       
       // Alert como fallback
       alert("✅ Perfil do motorista salvo com sucesso!");
@@ -47,7 +62,7 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
       console.log('✅ Todas as notificações enviadas');
     } catch (error) {
       console.error('❌ Erro ao salvar:', error);
-      alert("❌ Erro ao salvar o perfil do motorista!");
+      alert(`❌ Erro ao salvar o perfil: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   };
 
@@ -122,18 +137,19 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
         {/* Form */}
         <div className="space-y-4">
           <div>
-            <Label htmlFor="name">Nome Completo</Label>
+            <Label htmlFor="name">Nome Completo do Motorista</Label>
             <Input
               id="name"
               value={formData.name}
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               disabled={!isEditing}
               className={!isEditing ? "bg-gray-50" : ""}
+              placeholder="Ex: João da Silva"
             />
           </div>
 
           <div>
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">E-mail</Label>
             <Input
               id="email"
               type="email"
@@ -146,9 +162,10 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
           </div>
 
           <div>
-            <Label htmlFor="phone">Telefone</Label>
+            <Label htmlFor="phone">Telefone / WhatsApp</Label>
             <Input
               id="phone"
+              type="tel"
               value={formData.phone}
               onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
               disabled={!isEditing}
@@ -158,13 +175,14 @@ export const DriverProfile = ({ driver, onUpdate, onBack, onLogout }: DriverProf
           </div>
 
           <div>
-            <Label htmlFor="address">Endereço</Label>
+            <Label htmlFor="address">Endereço Completo</Label>
             <Input
               id="address"
               value={formData.address}
               onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
               disabled={!isEditing}
               className={!isEditing ? "bg-gray-50" : ""}
+              placeholder="Rua, número, bairro, cidade"
             />
           </div>
         </div>

@@ -57,48 +57,32 @@ class RealtimeDataService {
         return null;
       }
 
-      console.log('🔍 Geocodificando endereço via Mapbox:', address);
-      
-      // Obter token do Mapbox
-      const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-      if (!mapboxToken) {
-        console.error('❌ Token do Mapbox não configurado');
-        return null;
-      }
+      // Obter token do Mapbox com fallback público (igual ao usado no GuardianMapboxMap)
+      const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ||
+        'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
 
-      // Codificar endereço para URL
+      // Codificar endereço
       const encodedAddress = encodeURIComponent(address);
-      
-      // Fazer requisição para API de Geocoding do Mapbox
-      // Adicionar country=br para priorizar resultados no Brasil
+
+      // country=br para priorizar resultados no Brasil
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?access_token=${mapboxToken}&country=br&limit=1`;
-      
+
       const response = await fetch(url);
-      
       if (!response.ok) {
         console.error('❌ Erro na requisição de geocodificação:', response.status, response.statusText);
         return null;
       }
-      
+
       const data = await response.json();
-      
       if (data.features && data.features.length > 0) {
         const [lng, lat] = data.features[0].center;
         const placeName = data.features[0].place_name;
-        
-        console.log('✅ Coordenadas obtidas via Mapbox:', { 
-          address, 
-          placeName,
-          lng, 
-          lat 
-        });
-        
+        console.log('✅ Coordenadas obtidas via Mapbox:', { address, placeName, lng, lat });
         return [lng, lat];
-      } else {
-        console.warn('⚠️ Nenhum resultado encontrado para o endereço:', address);
-        return null;
       }
-      
+
+      console.warn('⚠️ Nenhum resultado encontrado para o endereço:', address);
+      return null;
     } catch (error) {
       console.error('❌ Erro ao geocodificar endereço:', { address, error });
       return null;
@@ -176,7 +160,7 @@ class RealtimeDataService {
       const studentAddresses = await this.captureStudentAddresses(activeRoute.studentPickups);
       
       // Capturar endereço da escola (simulado - em produção viria do banco)
-      const schoolAddress = await this.captureSchoolAddress();
+      const schoolAddress = await this.captureDefaultSchoolAddress();
       
       // Obter localização atual do motorista
       const driverLocation = await this.getCurrentDriverLocation();
@@ -275,7 +259,7 @@ class RealtimeDataService {
   /**
    * Captura endereço da escola
    */
-  private async captureSchoolAddress(): Promise<SchoolAddress> {
+  private async captureDefaultSchoolAddress(): Promise<SchoolAddress> {
     // Em produção, isso viria do banco de dados
     // Por enquanto, usando dados simulados com localização correta em Mogi das Cruzes
     const schoolData = {
@@ -410,9 +394,7 @@ class RealtimeDataService {
       lat: position.latitude,
       lng: position.longitude,
       accuracy: position.accuracy,
-      timestamp: new Date(position.timestamp).toISOString(),
-      speed: position.speed,
-      heading: position.heading
+      timestamp: new Date(position.timestamp).toISOString()
     };
 
     console.log('🚗 Nova posição do veículo:', {
