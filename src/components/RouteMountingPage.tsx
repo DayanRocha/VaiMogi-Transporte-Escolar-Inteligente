@@ -154,7 +154,7 @@ export const RouteMountingPage = ({
           <Button
             onClick={handleAddStudent}
             variant="outline"
-            className="w-full py-4 border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
+            className="w-full py-4 border-2 border-blue-300 text-blue-600 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all duration-200 flex items-center justify-center gap-2 hover:shadow-md"
           >
             <User className="w-5 h-5" />
             Adicionar estudante

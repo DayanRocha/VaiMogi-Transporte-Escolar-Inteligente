@@ -145,7 +145,7 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
 
           const addressKey = school.address.trim().toLowerCase();
           
-          // Verificar se já¡ temos coordenadas vÃ¡lidas para este endereço especÃ­fico
+          // Verificar se já temos coordenadas válidas para este endereço específico
           const hasValidCoordsForAddress = school.latitude && school.longitude &&
             typeof school.latitude === 'number' &&
             typeof school.longitude === 'number' &&
@@ -154,11 +154,22 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
             school.latitude >= -25 && school.latitude <= -20 &&
             school.longitude >= -54 && school.longitude <= -44;
 
-          if (hasValidCoordsForAddress) {
-            console.log('… Escola já¡ tem coordenadas vÃ¡lidas para o endereço:', school.name, { lat: school.latitude, lng: school.longitude });
+          // Verificar se o endereço mudou (comparar com cache)
+          const cachedForThisAddress = geocodedAddressCache.get(addressKey);
+          const addressChanged = cachedForThisAddress && 
+            (Math.abs(cachedForThisAddress.lat - (school.latitude || 0)) > 0.0001 ||
+             Math.abs(cachedForThisAddress.lng - (school.longitude || 0)) > 0.0001);
+
+          if (hasValidCoordsForAddress && !addressChanged) {
+            console.log('✅ Escola já tem coordenadas válidas para o endereço:', school.name, { lat: school.latitude, lng: school.longitude });
             // Adicionar ao cache
             geocodedAddressCache.set(addressKey, { lat: school.latitude, lng: school.longitude });
             return school;
+          }
+
+          // Se o endereço mudou, forçar re-geocodificação
+          if (addressChanged) {
+            console.log('🔄 Endereço da escola mudou, re-geocodificando:', school.name);
           }
 
           // Verificar cache de endereços
@@ -221,6 +232,56 @@ export const useMapboxMap = ({ driverLocation, students, schools }: UseMapboxMap
 
     geocodeSchools();
   }, [schools, geocodeSchoolAddress, geocodedAddressCache]);
+
+  // Listener para mudanças nas escolas (quando endereço é atualizado)
+  useEffect(() => {
+    const handleSchoolsUpdate = (event: CustomEvent) => {
+      console.log('🔄 Evento de atualização de escolas detectado');
+      const updatedSchools = event.detail?.schools || [];
+      if (updatedSchools.length > 0) {
+        console.log('📍 Atualizando escolas no mapa:', updatedSchools.length);
+        console.log('📍 Escolas recebidas no evento:', updatedSchools.map(s => ({
+          id: s.id,
+          name: s.name,
+          address: s.address,
+          lat: s.latitude,
+          lng: s.longitude
+        })));
+        setGeocodedSchools(updatedSchools);
+        
+        // Forçar re-renderização disparando o useEffect de geocodificação
+        // Isso garante que as novas coordenadas sejam geocodificadas
+        console.log('🔄 Forçando re-geocodificação das escolas atualizadas');
+      }
+    };
+
+    window.addEventListener('schoolsDataUpdated', handleSchoolsUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('schoolsDataUpdated', handleSchoolsUpdate as EventListener);
+    };
+  }, []);
+
+  // Listener para mudanças no localStorage (quando outra aba/componente atualiza)
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'schools' && event.newValue) {
+        try {
+          const updatedSchools = JSON.parse(event.newValue);
+          console.log('🔄 Escolas atualizadas via localStorage:', updatedSchools.length);
+          setGeocodedSchools(updatedSchools);
+        } catch (error) {
+          console.error('❌ Erro ao processar atualização de escolas:', error);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   // Filtrar estudantes e escolas com coordenadas vÃ¡lidas (usando dados geocodificados)
   const studentsWithCoords = useMemo(() => (

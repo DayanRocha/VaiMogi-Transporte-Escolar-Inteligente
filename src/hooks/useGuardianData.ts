@@ -337,33 +337,32 @@ const getGuardianChildren = (guardianId: string): Student[] => {
   return [];
 };
 
-// Função para buscar escolas do localStorage e filtrar logicamente pelos filhos do responsável
-const getSchools = (guardianId: string, guardianStudents: Student[]) => {
+// Função para buscar escolas do localStorage e filtrar pela rota ativa
+const getSchools = (guardianId: string, guardianStudents: Student[], activeRoute: any = null) => {
   console.log('🏫 Buscando escolas relacionadas ao responsável:', guardianId);
   const savedSchoolsRaw = localStorage.getItem('schools');
   const savedSchools = savedSchoolsRaw ? JSON.parse(savedSchoolsRaw) : [];
   console.log('🏫 Escolas disponíveis no storage:', savedSchools.length);
 
-  // Conjunto de schoolIds dos filhos do responsável
-  const guardianSchoolIds = new Set(guardianStudents.map(s => s.schoolId).filter(Boolean));
-  console.log('🏫 schoolIds dos filhos:', Array.from(guardianSchoolIds));
-
   if (savedSchools.length === 0) {
-    console.log('❌ Nenhuma escola no storage. Verifique se o motorista já cadastrou as escolas.');
+    console.log('❌ Nenhuma escola no storage.');
     return [];
   }
 
-  // Filtrar escolas por schoolIds dos filhos
-  const filtered = savedSchools.filter((s: any) => guardianSchoolIds.has(s.id));
-  console.log('🏫 Escolas filtradas para o responsável:', filtered.map((s: any) => ({ id: s.id, name: s.name })));
-
-  // Diagnóstico: IDs sem correspondência
-  const missing = Array.from(guardianSchoolIds).filter(id => !filtered.some((s: any) => s.id === id));
-  if (missing.length > 0) {
-    console.warn('⚠️ schoolIds de estudantes sem correspondência em schools:', missing);
+  // Se há rota ativa, filtrar apenas escolas dos estudantes da rota
+  if (activeRoute && guardianStudents.length > 0) {
+    const schoolIds = new Set(guardianStudents.map(s => s.schoolId).filter(Boolean));
+    const filteredSchools = savedSchools.filter((s: any) => schoolIds.has(s.id));
+    
+    console.log('🏫 Rota ativa detectada! Filtrando escolas da rota:', filteredSchools.length);
+    filteredSchools.forEach((s: any) => console.log('  -', s.name));
+    
+    return filteredSchools;
   }
 
-  return filtered;
+  // Se não há rota ativa, não mostrar nenhuma escola
+  console.log('🏫 Sem rota ativa. Não mostrando escolas.');
+  return [];
 };
 
 export const useGuardianData = () => {
@@ -403,8 +402,6 @@ export const useGuardianData = () => {
     return vanData;
   });
   
-  const [students, setStudents] = useState<Student[]>(() => getGuardianChildren(guardian.id));
-  const [schools, setSchools] = useState(() => getSchools(guardian.id, getGuardianChildren(guardian.id)));
   const [activeTrip, setActiveTrip] = useState<Trip | null>(() => {
     // Verificar se há uma rota ativa no routeTrackingService
     const activeRoute = routeTrackingService.getActiveRoute();
@@ -427,6 +424,27 @@ export const useGuardianData = () => {
     }
     return null;
   });
+  
+  // Inicializar students e schools baseado na rota ativa
+  const [students, setStudents] = useState<Student[]>(() => {
+    const activeRoute = routeTrackingService.getActiveRoute();
+    if (activeRoute && activeRoute.studentPickups) {
+      const routeStudentIds = new Set(activeRoute.studentPickups.map((p: any) => p.studentId));
+      const allStudents = getGuardianChildren(guardian.id);
+      const filteredStudents = allStudents.filter(s => routeStudentIds.has(s.id));
+      console.log('👥 Inicialização: Rota ativa com', filteredStudents.length, 'estudantes');
+      return filteredStudents;
+    }
+    console.log('👥 Inicialização: Sem rota ativa, sem estudantes');
+    return [];
+  });
+  
+  const [schools, setSchools] = useState(() => {
+    const activeRoute = routeTrackingService.getActiveRoute();
+    const initialStudents = students.length > 0 ? students : [];
+    return getSchools(guardian.id, initialStudents, activeRoute);
+  });
+  
   const [notifications, setNotifications] = useState<GuardianNotification[]>(() => {
     // Carregar notificações reais do localStorage
     const storedNotifications = notificationService.getStoredNotifications();
@@ -471,8 +489,21 @@ export const useGuardianData = () => {
         setActiveTrip(null);
       }
       const newVan = newDriver ? getVanData(newDriver.id) : null;
-      const newStudents = getGuardianChildren(guardian.id);
-      const newSchools = getSchools(guardian.id, newStudents);
+      
+      // Se há rota ativa, filtrar apenas estudantes da rota
+      let newStudents: Student[];
+      if (activeRoute && activeRoute.studentPickups) {
+        const routeStudentIds = new Set(activeRoute.studentPickups.map((p: any) => p.studentId));
+        const allStudents = getGuardianChildren(guardian.id);
+        newStudents = allStudents.filter(s => routeStudentIds.has(s.id));
+        console.log('👥 Rota ativa! Filtrando estudantes da rota:', newStudents.length);
+      } else {
+        // Se não há rota ativa, não mostrar estudantes
+        newStudents = [];
+        console.log('👥 Sem rota ativa. Não mostrando estudantes.');
+      }
+      
+      const newSchools = getSchools(guardian.id, newStudents, activeRoute);
       
       setDriver(newDriver);
       setVan(newVan);
@@ -483,17 +514,34 @@ export const useGuardianData = () => {
     // Escutar mudanças no localStorage
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'drivers' || e.key === 'vans' || e.key === 'students' || e.key === 'schools') {
+        console.log('🔄 useGuardianData: Storage mudou, atualizando dados...', e.key);
         updateData();
       }
     };
 
+    // Escutar evento customizado de atualização de escolas
+    const handleSchoolsUpdate = (event: CustomEvent) => {
+      console.log('🔄 useGuardianData: Evento schoolsDataUpdated recebido');
+      updateData();
+    };
+
+    // Escutar evento customizado de atualização de estudantes
+    const handleStudentsUpdate = (event: CustomEvent) => {
+      console.log('🔄 useGuardianData: Evento studentsDataUpdated recebido');
+      updateData();
+    };
+
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('schoolsDataUpdated', handleSchoolsUpdate as EventListener);
+    window.addEventListener('studentsDataUpdated', handleStudentsUpdate as EventListener);
     
     // Também verificar periodicamente para mudanças na mesma aba (mais frequente para tempo real)
     const interval = setInterval(updateData, 2000);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('schoolsDataUpdated', handleSchoolsUpdate as EventListener);
+      window.removeEventListener('studentsDataUpdated', handleStudentsUpdate as EventListener);
       clearInterval(interval);
     };
   }, [guardian.id]);

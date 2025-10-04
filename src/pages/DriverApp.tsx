@@ -372,9 +372,11 @@ export default function DriverApp() {
 
   const handleSaveSchool = (schoolData: { name: string; address: string }) => {
     if (editingSchool) {
+      console.log('💾 Salvando alterações da escola:', editingSchool.name);
       updateSchool(editingSchool.id, schoolData);
       setEditingSchool(null);
     } else {
+      console.log('➕ Adicionando nova escola');
       addSchool(schoolData);
     }
     setShowSchoolForm(false);
@@ -480,6 +482,17 @@ export default function DriverApp() {
             }
             
             console.log('Mudanças salvas na rota:', updatedRoute);
+            console.log('📢 Disparando evento de atualização de estudantes da rota');
+            console.log('📊 Estudantes na rota:', updatedRoute.students.length);
+            
+            // Disparar evento para atualizar o mapa do responsável
+            // IMPORTANTE: Passar apenas os estudantes da rota, não todos os estudantes
+            window.dispatchEvent(new CustomEvent('studentsDataUpdated', { 
+              detail: { 
+                students: updatedRoute.students,
+                routeId: updatedRoute.id
+              } 
+            }));
           }}
           onStartRoute={() => {
             // Verificar se há novos alunos para notificar seletivamente
@@ -494,6 +507,18 @@ export default function DriverApp() {
               startTrip(executingRoute.id);
               console.log('Rota iniciada:', executingRoute.name);
             }
+            
+            console.log('📢 Disparando evento de atualização de estudantes ao iniciar rota');
+            console.log('📊 Estudantes na rota:', executingRoute.students.length);
+            
+            // Disparar evento para atualizar o mapa do responsável
+            // IMPORTANTE: Passar apenas os estudantes da rota, não todos os estudantes
+            window.dispatchEvent(new CustomEvent('studentsDataUpdated', { 
+              detail: { 
+                students: executingRoute.students,
+                routeId: executingRoute.id
+              } 
+            }));
             
             setShowRouteExecutionScreen(false);
             setExecutingRoute(null);

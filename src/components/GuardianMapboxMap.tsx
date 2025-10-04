@@ -50,7 +50,7 @@ function GuardianMapboxMap({
   });
   
   if (schools && schools.length > 0) {
-    console.log('🏫 GuardianMapboxMap: Escolas recebidas:', schools.map(s => ({
+    console.log('🏫 GuardianMapboxMap: Escolas recebidas (props):', schools.map(s => ({
       id: s.id,
       name: s.name,
       address: s.address,
@@ -62,6 +62,20 @@ function GuardianMapboxMap({
         s.longitude >= -50 && s.longitude <= -44
     })));
   }
+  
+  // Log para debug: verificar quando as props schools mudam
+  useEffect(() => {
+    console.log('🔄 Props schools mudaram! Total:', schools.length);
+    if (schools.length > 0) {
+      console.log('🔄 Primeira escola:', {
+        id: schools[0].id,
+        name: schools[0].name,
+        address: schools[0].address,
+        lat: schools[0].latitude,
+        lng: schools[0].longitude
+      });
+    }
+  }, [schools]);
   
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -483,7 +497,46 @@ function GuardianMapboxMap({
       
       // Só atualizar se o estilo realmente mudou
       if (currentStyle.name !== newStyle) {
+        console.log('🎨 Mudando estilo do mapa:', newStyle);
+        console.log('🔄 Salvando marcadores antes de mudar estilo...');
+        
+        // Salvar referências dos marcadores atuais
+        const savedDriverMarker = driverMarker.current;
+        const savedStudentMarkers = new Map(studentMarkersMapRef.current);
+        const savedSchoolMarkers = new Map(schoolMarkersMapRef.current);
+        
+        console.log('💾 Marcadores salvos:', {
+          driver: !!savedDriverMarker,
+          students: savedStudentMarkers.size,
+          schools: savedSchoolMarkers.size
+        });
+        
+        // Mudar o estilo
         map.current.setStyle(newStyle);
+        
+        // Quando o estilo carregar, recriar os marcadores
+        map.current.once('style.load', () => {
+          console.log('🎨 Estilo carregado, recriando marcadores...');
+          
+          // Recriar marcador do motorista
+          if (savedDriverMarker) {
+            const lngLat = savedDriverMarker.getLngLat();
+            savedDriverMarker.addTo(map.current!);
+            console.log('✅ Marcador do motorista recriado');
+          }
+          
+          // Recriar marcadores dos estudantes
+          savedStudentMarkers.forEach((marker, id) => {
+            marker.addTo(map.current!);
+          });
+          console.log('✅ Marcadores dos estudantes recriados:', savedStudentMarkers.size);
+          
+          // Recriar marcadores das escolas
+          savedSchoolMarkers.forEach((marker, id) => {
+            marker.addTo(map.current!);
+          });
+          console.log('✅ Marcadores das escolas recriados:', savedSchoolMarkers.size);
+        });
       }
     }
   }, [mapQuality, getMapStyle]);
@@ -576,35 +629,58 @@ function GuardianMapboxMap({
       `;
     };
 
-    // Criar marcador estático apenas quando necessário
+    // Criar marcador de navegação estilo Google Maps
     const el = document.createElement('div');
-    el.className = 'driver-marker-static';
+    el.className = 'driver-marker-navigation';
+    
+    // Obter direção (heading) se disponível
+    const heading = driverLocation.heading || 0;
+    
+    // Criar SVG de seta de navegação
+    el.innerHTML = `
+      <svg width="48" height="48" viewBox="0 0 48 48" style="transform: rotate(${heading}deg); transition: transform 0.3s ease;">
+        <!-- Sombra -->
+        <ellipse cx="24" cy="42" rx="8" ry="3" fill="rgba(0,0,0,0.3)" />
+        
+        <!-- Círculo externo (borda branca) -->
+        <circle cx="24" cy="24" r="18" fill="white" />
+        
+        <!-- Círculo interno (azul) -->
+        <circle cx="24" cy="24" r="16" fill="#4285F4" />
+        
+        <!-- Seta de navegação -->
+        <path d="M 24 8 L 30 28 L 24 24 L 18 28 Z" fill="white" />
+        
+        <!-- Ponto central -->
+        <circle cx="24" cy="24" r="3" fill="white" />
+      </svg>
+    `;
+    
     el.style.cssText = `
-      width: 44px;
-      height: 44px;
-      background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-      border: 3px solid white;
-      border-radius: 50%;
-      box-shadow: 0 4px 16px rgba(107, 114, 128, 0.4);
+      width: 48px;
+      height: 48px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
-      color: white;
-      font-weight: bold;
       transition: all 0.3s ease;
     `;
-    el.innerHTML = '🚌';
 
-    // Adicionar estilo hover apenas uma vez
-    if (!document.getElementById('driver-marker-static-styles')) {
+    // Adicionar estilos hover e animação
+    if (!document.getElementById('driver-marker-navigation-styles')) {
       const style = document.createElement('style');
-      style.id = 'driver-marker-static-styles';
+      style.id = 'driver-marker-navigation-styles';
       style.textContent = `
-        .driver-marker-static:hover {
-          transform: scale(1.1);
-          box-shadow: 0 6px 20px rgba(107, 114, 128, 0.6);
+        .driver-marker-navigation:hover {
+          transform: scale(1.15);
+        }
+        
+        .driver-marker-navigation svg {
+          filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+        }
+        
+        .driver-marker-navigation:hover svg {
+          filter: drop-shadow(0 6px 12px rgba(0,0,0,0.4));
         }
       `;
       document.head.appendChild(style);
@@ -625,7 +701,7 @@ function GuardianMapboxMap({
     console.log('🚌 Marcador estático do motorista criado/atualizado na posição:', position);
   }, [driverLocation]); // Removendo formatTime das dependências
 
-  // Marcadores dos estudantes - otimizados (atualiza/recicla em vez de recriar tudo)
+  // Marcadores dos estudantes - agrupados por endereço
   useEffect(() => {
     if (!map.current) return;
     
@@ -637,79 +713,35 @@ function GuardianMapboxMap({
       return;
     }
 
-    const currentIds = new Set<string>();
-    const existingMarkers = new Map<string, mapboxgl.Marker>();
-    
-    // Mapear marcadores existentes por ID do estudante
-    studentMarkers.current.forEach((marker, index) => {
-      const student = memoizedStudentsWithCoords[index];
-      if (student) {
-        existingMarkers.set(student.id, marker);
-      }
-    });
-
-    // Limpar array de marcadores para reconstruir
+    // Remover todos os marcadores existentes
+    studentMarkers.current.forEach(marker => marker.remove());
     studentMarkers.current = [];
 
+    // Agrupar estudantes por endereço (coordenadas)
+    const studentsByLocation = new Map<string, Student[]>();
+    
     memoizedStudentsWithCoords.forEach(student => {
       if (!student.latitude || !student.longitude) return;
-      currentIds.add(student.id);
-
-      const position: [number, number] = [student.longitude, student.latitude];
-      const positionKey = `${position[0].toFixed(6)},${position[1].toFixed(6)}`;
       
-      // Verificar se já existe um marcador para este estudante
-      const existingMarker = existingMarkers.get(student.id);
+      const positionKey = `${student.longitude.toFixed(6)},${student.latitude.toFixed(6)}`;
       
-      if (existingMarker) {
-        // Verificar se a posição mudou
-        const currentPos = existingMarker.getLngLat();
-        const currentPosKey = `${currentPos.lng.toFixed(6)},${currentPos.lat.toFixed(6)}`;
-        
-        if (currentPosKey === positionKey) {
-          // Posição não mudou, reutilizar marcador existente
-          studentMarkers.current.push(existingMarker);
-          existingMarkers.delete(student.id);
-          return;
-        } else {
-          // Posição mudou, atualizar posição do marcador existente
-          existingMarker.setLngLat(position);
-          
-          // Atualizar popup se necessário
-          const popup = existingMarker.getPopup();
-          if (popup) {
-            // Encontrar a escola do estudante
-            const studentSchool = schools.find(school => school.id === student.schoolId);
-            
-            popup.setHTML(`
-              <div style="padding: 8px;">
-                <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">👨‍🎓 ${student.name}</div>
-                <div style="font-size: 12px; color: #374151;">
-                  <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                      <circle cx="12" cy="10" r="3"></circle>
-                    </svg>
-                    <strong>Endereço:</strong> ${student.address}
-                  </div>
-                  <div><strong>Ponto de Coleta:</strong> ${student.pickupPoint}</div>
-                  ${studentSchool ? `<div><strong>Escola:</strong> ${studentSchool.name}</div>` : ''}
-                  <div><strong>Responsável:</strong> ${student.guardianPhone}</div>
-                  <div style="margin-top: 6px; padding: 3px 8px; background: #10b981; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
-                    📍 ${student.status === 'waiting' ? 'Aguardando' : student.status === 'embarked' ? 'Embarcado' : 'Na Escola'}
-                  </div>
-                </div>
-              </div>
-            `);
-          }
-          
-          studentMarkers.current.push(existingMarker);
-          existingMarkers.delete(student.id);
-          return;
-        }
+      if (!studentsByLocation.has(positionKey)) {
+        studentsByLocation.set(positionKey, []);
       }
+      studentsByLocation.get(positionKey)!.push(student);
+    });
 
-      // Criar novo marcador apenas se não existir
+    console.log('👥 Estudantes agrupados por localização:', studentsByLocation.size, 'localizações');
+
+    // Criar um marcador para cada localização (pode ter múltiplos estudantes)
+    studentsByLocation.forEach((studentsAtLocation, positionKey) => {
+      const firstStudent = studentsAtLocation[0];
+      const position: [number, number] = [firstStudent.longitude, firstStudent.latitude];
+      const studentCount = studentsAtLocation.length;
+      
+      console.log(`📍 Criando marcador para ${studentCount} estudante(s) em:`, position);
+
+      // Criar marcador com badge se houver múltiplos estudantes
       const el = document.createElement('div');
       el.className = 'student-marker';
       el.style.cssText = `
@@ -727,10 +759,36 @@ function GuardianMapboxMap({
         color: white;
         font-weight: bold;
         transition: all 0.2s ease;
+        position: relative;
       `;
       el.innerHTML = '👨‍🎓';
+      
+      // Adicionar badge com número de estudantes se houver mais de um
+      if (studentCount > 1) {
+        const badge = document.createElement('div');
+        badge.className = 'student-count-badge';
+        badge.textContent = studentCount.toString();
+        badge.style.cssText = `
+          position: absolute;
+          top: -6px;
+          right: -6px;
+          background: #ef4444;
+          color: white;
+          border-radius: 50%;
+          width: 20px;
+          height: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: bold;
+          border: 2px solid white;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        `;
+        el.appendChild(badge);
+      }
 
-      // Adicionar estilo hover apenas uma vez
+      // Adicionar estilos apenas uma vez
       if (!document.getElementById('student-marker-styles')) {
         const style = document.createElement('style');
         style.id = 'student-marker-styles';
@@ -739,35 +797,94 @@ function GuardianMapboxMap({
             transform: scale(1.15);
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.6);
           }
+          
+          /* Estilos do popup moderno */
+          .mapboxgl-popup.student-popup-modern .mapboxgl-popup-content {
+            padding: 0;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            border: 1px solid #e5e7eb;
+          }
+          
+          .mapboxgl-popup.student-popup-modern .mapboxgl-popup-close-button {
+            font-size: 18px;
+            padding: 4px 8px;
+            color: #6b7280;
+            right: 4px;
+            top: 4px;
+          }
+          
+          .mapboxgl-popup.student-popup-modern .mapboxgl-popup-close-button:hover {
+            background: #f3f4f6;
+            color: #1f2937;
+            border-radius: 6px;
+          }
+          
+          .mapboxgl-popup.student-popup-modern .mapboxgl-popup-tip {
+            border-top-color: #f9fafb;
+          }
         `;
         document.head.appendChild(style);
       }
 
+      // Criar HTML do popup com todos os estudantes
+      const popupHTML = `
+        <div style="padding: 6px; max-width: 260px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+          ${studentCount > 1 ? `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; margin-bottom: 8px; text-align: center; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);">
+              👥 ${studentCount} Estudantes
+            </div>
+          ` : ''}
+          ${studentsAtLocation.map((student, index) => {
+            const studentSchool = schools.find(school => school.id === student.schoolId);
+            const statusConfig = {
+              waiting: { color: '#10b981', bg: '#d1fae5', text: 'Aguardando', icon: '⏳' },
+              embarked: { color: '#3b82f6', bg: '#dbeafe', text: 'Embarcado', icon: '🚌' },
+              dropped_off: { color: '#8b5cf6', bg: '#ede9fe', text: 'Na Escola', icon: '🏫' }
+            };
+            const status = statusConfig[student.status as keyof typeof statusConfig] || statusConfig.waiting;
+            
+            return `
+              <div style="background: ${index % 2 === 0 ? '#f9fafb' : 'white'}; padding: 8px; border-radius: 6px; margin-bottom: ${index < studentsAtLocation.length - 1 ? '6px' : '0'};">
+                <div style="font-weight: 600; font-size: 13px; color: #1f2937; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                  <span style="font-size: 16px;">👨‍🎓</span>
+                  <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${student.name}</span>
+                </div>
+                <div style="font-size: 11px; color: #6b7280; line-height: 1.5;">
+                  ${index === 0 ? `
+                    <div style="display: flex; align-items: start; gap: 4px; margin-bottom: 3px;">
+                      <span style="color: #10b981; font-size: 12px;">📍</span>
+                      <span style="flex: 1;">${student.address}</span>
+                    </div>
+                  ` : ''}
+                  ${studentSchool ? `
+                    <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px;">
+                      <span style="font-size: 12px;">🏫</span>
+                      <span>${studentSchool.name}</span>
+                    </div>
+                  ` : ''}
+                  <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                    <span style="font-size: 12px;">📞</span>
+                    <span>${student.guardianPhone}</span>
+                  </div>
+                  <div style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: ${status.bg}; color: ${status.color}; border-radius: 12px; font-size: 10px; font-weight: 600;">
+                    <span>${status.icon}</span>
+                    <span>${status.text}</span>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+      
       const popup = new mapboxgl.Popup({ 
         offset: 25, 
-        className: 'student-popup',
+        className: 'student-popup-modern',
         closeButton: true,
-        closeOnClick: false
-      }).setHTML(`
-        <div style="padding: 8px;">
-          <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">👨‍🎓 ${student.name}</div>
-          <div style="font-size: 12px; color: #374151;">
-            <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-              </svg>
-              <strong>Endereço:</strong> ${student.address}
-            </div>
-            <div><strong>Ponto de Coleta:</strong> ${student.pickupPoint}</div>
-            ${schools.find(school => school.id === student.schoolId) ? `<div><strong>Escola:</strong> ${schools.find(school => school.id === student.schoolId)?.name}</div>` : ''}
-            <div><strong>Responsável:</strong> ${student.guardianPhone}</div>
-            <div style="margin-top: 6px; padding: 3px 8px; background: #10b981; color: white; border-radius: 4px; font-size: 10px; display: inline-block;">
-              📍 ${student.status === 'waiting' ? 'Aguardando' : student.status === 'embarked' ? 'Embarcado' : 'Na Escola'}
-            </div>
-          </div>
-        </div>
-      `);
+        closeOnClick: false,
+        maxWidth: '280px'
+      }).setHTML(popupHTML);
 
       const marker = new mapboxgl.Marker(el)
         .setLngLat(position)
@@ -777,50 +894,39 @@ function GuardianMapboxMap({
       studentMarkers.current.push(marker);
     });
 
-    // Remover marcadores que não são mais necessários
-    existingMarkers.forEach(marker => {
-      marker.remove();
-    });
-
-    console.log(`👨‍🎓 Marcadores de estudantes otimizados: ${studentMarkers.current.length} ativos`);
-  }, [memoizedStudentsWithCoords, activeRoute]);
+    console.log(`👨‍🎓 Marcadores de estudantes criados: ${studentMarkers.current.length} marcadores para ${memoizedStudentsWithCoords.length} estudantes`);
+  }, [memoizedStudentsWithCoords, schools]);
 
   // Marcadores das escolas - estáveis (atualiza/recicla em vez de recriar tudo)
   useEffect(() => {
-    console.log('🏫 DEBUG: ========== INÍCIO useEffect ESCOLAS ==========');
-    console.log('🏫 DEBUG: map.current existe?', !!map.current);
-    console.log('🏫 DEBUG: isMapLoaded?', isMapLoaded);
-    console.log('🏫 DEBUG: memoizedSchoolsWithCoords:', memoizedSchoolsWithCoords);
-    console.log('🏫 DEBUG: Quantidade de escolas com coordenadas:', memoizedSchoolsWithCoords.length);
+    console.log('🏫 ========== useEffect ESCOLAS executado ==========');
+    console.log('🏫 map.current existe?', !!map.current);
+    console.log('🏫 Quantidade de escolas:', memoizedSchoolsWithCoords.length);
+    console.log('🏫 Marcadores existentes:', schoolMarkersMapRef.current.size);
     
     if (!map.current) {
-      console.log('❌ DEBUG: map.current não existe, saindo...');
+      console.log('❌ map.current não existe, saindo...');
       return;
     }
     
     // Sempre exibir marcadores de escolas, independente de rota ativa
     if (memoizedSchoolsWithCoords.length === 0) {
-      console.log('⚠️ DEBUG: Nenhuma escola com coordenadas válidas');
-      console.log('⚠️ DEBUG: Escolas originais:', schools);
-      console.log('⚠️ DEBUG: schoolsWithCoords:', schoolsWithCoords);
+      console.log('⚠️ Nenhuma escola com coordenadas válidas');
       // Remover todos os marcadores quando não há escolas
       for (const [id, marker] of schoolMarkersMapRef.current.entries()) {
+        console.log('🗑️ Removendo marcador da escola:', id);
         marker.remove();
         schoolMarkersMapRef.current.delete(id);
       }
       return;
     }
 
-    console.log('✅ DEBUG: Processando', memoizedSchoolsWithCoords.length, 'escolas');
+    console.log('✅ Processando', memoizedSchoolsWithCoords.length, 'escolas');
     const currentIds = new Set<string>();
 
     memoizedSchoolsWithCoords.forEach(school => {
-      console.log('🏫 DEBUG: ===== Processando escola:', school.name, '=====');
-      console.log('🏫 DEBUG: Coordenadas:', { lat: school.latitude, lng: school.longitude });
-      console.log('🏫 DEBUG: Endereço:', school.address);
-      
       if (!school.latitude || !school.longitude) {
-        console.log('⚠️ DEBUG: Escola SEM coordenadas:', school.name);
+        console.log('⚠️ Escola SEM coordenadas:', school.name);
         return;
       }
       
@@ -829,11 +935,11 @@ function GuardianMapboxMap({
                            school.longitude >= -50 && school.longitude <= -44;
       
       if (!isValidRegion) {
-        console.log('❌ DEBUG: Coordenadas FORA da região válida:', school.name, { lat: school.latitude, lng: school.longitude });
+        console.log('❌ Coordenadas FORA da região:', school.name);
         return;
       }
       
-      console.log('✅ DEBUG: Escola tem coordenadas VÁLIDAS:', school.name);
+      console.log('🏫 Processando escola:', school.name);
       currentIds.add(school.id);
 
       let marker = schoolMarkersMapRef.current.get(school.id);
@@ -862,9 +968,9 @@ function GuardianMapboxMap({
         </div>
       `;
 
-      if (!marker) {
-        console.log('🏫 DEBUG: Criando NOVO marcador para escola:', school.name, 'em', [school.longitude, school.latitude]);
-        console.log('🏫 DEBUG: map.current existe?', !!map.current);
+      // Se não existe marcador OU se foi removido por mudança de endereço, criar novo
+      if (!marker || !schoolMarkersMapRef.current.has(school.id)) {
+        console.log('🏫 Criando marcador para:', school.name);
         
         const el = document.createElement('div');
         el.className = 'school-marker';
@@ -885,8 +991,6 @@ function GuardianMapboxMap({
           z-index: 1000;
         `;
         el.innerHTML = '🏫';
-        
-        console.log('🏫 DEBUG: Elemento HTML criado:', el);
 
         const popup = new mapboxgl.Popup({ offset: 18 }).setHTML(popupHTML);
         
@@ -897,35 +1001,110 @@ function GuardianMapboxMap({
             .addTo(map.current!);
           
           schoolMarkersMapRef.current.set(school.id, marker);
-          
-          console.log('✅ DEBUG: Marcador da escola criado e adicionado ao mapa:', school.name);
-          console.log('✅ DEBUG: Marcador adicionado ao DOM?', document.querySelector('.school-marker') !== null);
-          console.log('✅ DEBUG: Total de .school-marker no DOM:', document.querySelectorAll('.school-marker').length);
+          console.log('✅ Marcador criado:', school.name);
         } catch (error) {
-          console.error('❌ DEBUG: Erro ao criar marcador da escola:', error);
+          console.error('❌ Erro ao criar marcador:', error);
         }
       } else {
-        console.log('🔄 DEBUG: Atualizando marcador existente para escola:', school.name);
-        marker.setLngLat([school.longitude, school.latitude]);
-        marker.getPopup()?.setHTML(popupHTML);
+        // Verificar se o endereço mudou comparando coordenadas
+        const currentPos = marker.getLngLat();
+        const posChanged = Math.abs(currentPos.lng - school.longitude) > 0.0001 || 
+                          Math.abs(currentPos.lat - school.latitude) > 0.0001;
+        
+        if (posChanged) {
+          console.log('🔄 Endereço mudou! Removendo marcador antigo');
+          console.log('   Posição antiga:', { lng: currentPos.lng, lat: currentPos.lat });
+          console.log('   Posição nova:', { lng: school.longitude, lat: school.latitude });
+          
+          // Remover marcador antigo completamente
+          marker.remove();
+          schoolMarkersMapRef.current.delete(school.id);
+          console.log('🗑️ Marcador antigo removido, será recriado');
+          
+          // Criar novo marcador imediatamente
+          try {
+            console.log('🏫 Criando NOVO marcador para escola:', school.name);
+            
+            const el = document.createElement('div');
+            el.className = 'school-marker';
+            el.style.backgroundImage = 'url(/school-marker.png)';
+            el.style.width = '40px';
+            el.style.height = '40px';
+            el.style.backgroundSize = 'cover';
+            el.style.cursor = 'pointer';
+            el.style.borderRadius = '50%';
+            el.style.border = '3px solid #10b981';
+            el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+            
+            if (studentCount > 0) {
+              const badge = document.createElement('div');
+              badge.className = 'student-count-badge';
+              badge.textContent = studentCount.toString();
+              badge.style.position = 'absolute';
+              badge.style.top = '-8px';
+              badge.style.right = '-8px';
+              badge.style.backgroundColor = '#ef4444';
+              badge.style.color = 'white';
+              badge.style.borderRadius = '50%';
+              badge.style.width = '24px';
+              badge.style.height = '24px';
+              badge.style.display = 'flex';
+              badge.style.alignItems = 'center';
+              badge.style.justifyContent = 'center';
+              badge.style.fontSize = '12px';
+              badge.style.fontWeight = 'bold';
+              badge.style.border = '2px solid white';
+              badge.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+              el.appendChild(badge);
+            }
+            
+            const popup = new mapboxgl.Popup({ 
+              offset: 25,
+              closeButton: true,
+              closeOnClick: false
+            }).setHTML(popupHTML);
+            
+            marker = new mapboxgl.Marker(el)
+              .setLngLat([school.longitude, school.latitude])
+              .setPopup(popup)
+              .addTo(map.current!);
+            
+            schoolMarkersMapRef.current.set(school.id, marker);
+            console.log('✅ Marcador da escola criado e adicionado ao mapa');
+          } catch (error) {
+            console.error('❌ Erro ao criar marcador da escola:', error);
+          }
+        } else {
+          console.log('🔄 Atualizando marcador:', school.name);
+          
+          // Verificar se o marcador está realmente no DOM
+          const markerElement = marker.getElement();
+          const isInDOM = markerElement && document.body.contains(markerElement);
+          
+          if (!isInDOM) {
+            console.log('⚠️ Marcador não está no DOM, readicionando...');
+            marker.addTo(map.current!);
+          }
+          
+          marker.setLngLat([school.longitude, school.latitude]);
+          marker.getPopup()?.setHTML(popupHTML);
+        }
       }
     });
 
     // Remover marcadores de escolas que não estão mais presentes
-    console.log('🏫 DEBUG: IDs atuais de escolas:', Array.from(currentIds));
-    console.log('🏫 DEBUG: IDs no mapa:', Array.from(schoolMarkersMapRef.current.keys()));
-    
     for (const [id, marker] of schoolMarkersMapRef.current.entries()) {
       if (!currentIds.has(id)) {
-        console.log('🗑️ DEBUG: Removendo marcador de escola que não está mais presente:', id);
+        console.log('🗑️ Removendo marcador obsoleto:', id);
         marker.remove();
         schoolMarkersMapRef.current.delete(id);
       }
     }
     
-    console.log('🏫 DEBUG: Total de marcadores de escolas no mapa:', schoolMarkersMapRef.current.size);
-    console.log('🏫 DEBUG: Total de .school-marker no DOM:', document.querySelectorAll('.school-marker').length);
-  }, [memoizedSchoolsWithCoords, activeRoute, students]);
+    console.log('🏫 Total de marcadores:', schoolMarkersMapRef.current.size);
+    console.log('🏫 Total no DOM:', document.querySelectorAll('.school-marker').length);
+    console.log('🏫 ========== FIM useEffect ESCOLAS ==========');
+  }, [memoizedSchoolsWithCoords, students]); // Removido activeRoute das dependências
 
   // Renderizar rota de navegação no mapa
   useEffect(() => {

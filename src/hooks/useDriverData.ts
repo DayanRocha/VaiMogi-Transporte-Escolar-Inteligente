@@ -273,10 +273,44 @@ export const useDriverData = () => {
   };
 
   const updateSchool = (schoolId: string, schoolData: { name: string; address: string }) => {
-    setSchools(prev => prev.map(school => 
-      school.id === schoolId ? { ...school, ...schoolData } : school
-    ));
-    console.log(`🏫 Escola atualizada: ${schoolId}`);
+    setSchools(prev => {
+      const updatedSchools = prev.map(school => {
+        if (school.id === schoolId) {
+          const oldAddress = school.address;
+          const addressChanged = oldAddress !== schoolData.address;
+          
+          console.log('📝 Atualizando escola:', school.name);
+          if (addressChanged) {
+            console.log('📍 Endereço mudou!');
+            console.log('   De:', oldAddress);
+            console.log('   Para:', schoolData.address);
+            console.log('🔄 Removendo coordenadas antigas para forçar re-geocodificação');
+            
+            // Se o endereço mudou, remover coordenadas para forçar re-geocodificação
+            return { 
+              ...school, 
+              ...schoolData,
+              latitude: undefined,
+              longitude: undefined
+            };
+          }
+          
+          return { ...school, ...schoolData };
+        }
+        return school;
+      });
+      
+      // Salvar no localStorage
+      localStorage.setItem('schools', JSON.stringify(updatedSchools));
+      
+      // Disparar evento para atualizar o mapa
+      window.dispatchEvent(new CustomEvent('schoolsDataUpdated', { 
+        detail: { schools: updatedSchools } 
+      }));
+      console.log('📢 Evento schoolsDataUpdated disparado');
+      
+      return updatedSchools;
+    });
   };
 
   const deleteSchool = (schoolId: string) => {
